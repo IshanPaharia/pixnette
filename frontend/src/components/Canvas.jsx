@@ -84,7 +84,12 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
 
   const handlePointerMove = (e) => {
     const pointers = pointersRef.current;
-    if (!pointers.has(e.pointerId)) return;
+    
+    // Track mouse movement even without click; required for hover.
+    // For touch, we only care if they are already pressing.
+    const isMouse = e.pointerType === 'mouse';
+    if (!isMouse && !pointers.has(e.pointerId)) return;
+    
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
     // Multi-touch Pinch
@@ -116,8 +121,8 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
       return;
     }
     
-    // Mouse Hover
-    if (pointers.size === 1 && e.pointerType === 'mouse') {
+    // Mouse Hover (only when not specifically multi-touching or panning)
+    if (e.pointerType === 'mouse' && pointers.size <= 1 && !isPanning) {
         const wrap = wrapRef.current;
         if (!wrap || !onHover) return;
         const rect = wrap.getBoundingClientRect();

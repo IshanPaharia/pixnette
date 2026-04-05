@@ -6,6 +6,7 @@ import { Tooltip } from './components/Tooltip';
 import { useSocket } from './hooks/useSocket';
 import { useCooldown } from './hooks/useCooldown';
 import { useCanvas } from './hooks/useCanvas';
+import { Analytics } from "@vercel/analytics/react"
 
 function App() {
   const { socket, isConnected, liveCount } = useSocket();
@@ -143,6 +144,7 @@ function App() {
         clientX={hoverCursor?.clientX}
         clientY={hoverCursor?.clientY}
       />
+      <Analytics/>
     </div>
   );
 }

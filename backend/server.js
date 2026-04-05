@@ -11,16 +11,18 @@ const pool = require('./db')
 const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE) || 512
 const COOLDOWN_SECONDS = parseInt(process.env.COOLDOWN_SECONDS) || 30
 
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+
 const app = express()
 const server = http.createServer(app)
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: FRONTEND_URL,
     methods: ['GET', 'POST']
   }
 })
 
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }))
+app.use(cors({ origin: FRONTEND_URL }))
 app.use(express.json())
 app.use('/api', require('./routes/api'))
 
