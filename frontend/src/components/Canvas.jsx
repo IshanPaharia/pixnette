@@ -1,7 +1,7 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, memo } from 'react';
 import { canvasToPixel, inBounds, clamp, CANVAS_SIZE } from '../utils/canvas';
 
-export function Canvas({ boardRef, overlayRef, onHover, onClickPixel }) {
+function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
   const wrapRef = useRef(null);
   
   const [scale, setScale] = useState(2);
@@ -30,7 +30,7 @@ export function Canvas({ boardRef, overlayRef, onHover, onClickPixel }) {
     const mouseY = e.clientY - rect.top;
     
     const delta = e.deltaY < 0 ? 1.15 : 0.87;
-    const newScale = clamp(scale * delta, 0.5, 80); // increased max scale for smaller canvas
+    const newScale = clamp(scale * delta, 0.5, 80); 
     
     const newOffsetX = mouseX - (mouseX - offsetX) * (newScale / scale);
     const newOffsetY = mouseY - (mouseY - offsetY) * (newScale / scale);
@@ -181,3 +181,5 @@ export function Canvas({ boardRef, overlayRef, onHover, onClickPixel }) {
     </div>
   );
 }
+
+export const Canvas = memo(CanvasComponent);

@@ -76,7 +76,7 @@ function App() {
     }
   }, [selectedColor, hoverCursor, drawHoverPixel]);
 
-  const handlePlace = () => {
+  const handlePlace = useCallback(() => {
     if (cooldownRemaining > 0) {
       showFlash(`Cooldown: ${cooldownRemaining}s remaining`);
       return;
@@ -95,9 +95,9 @@ function App() {
     
     updatePixel(x, y, selectedColor);
     triggerCooldown();
-  };
+  }, [cooldownRemaining, hoverCursor, socket, selectedColor, updatePixel, triggerCooldown]);
 
-  const handleClickPixel = (x, y) => {
+  const handleClickPixel = useCallback((x, y) => {
     if (cooldownRemaining > 0) {
       showFlash(`Cooldown: ${cooldownRemaining}s remaining`);
       return;
@@ -109,7 +109,7 @@ function App() {
     
     updatePixel(x, y, selectedColor);
     triggerCooldown();
-  };
+  }, [cooldownRemaining, socket, selectedColor, updatePixel, triggerCooldown]);
 
   return (
     <div className="w-full h-screen relative bg-[var(--color-canvas-bg)] text-[var(--color-text-main)] overflow-hidden font-sans">
