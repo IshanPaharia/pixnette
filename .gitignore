@@ -1,0 +1,18 @@
+# Common across the whole project
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Project subdirectories
+backend/node_modules/
+backend/dist/
+backend/.env
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/out/
+frontend/.env*
