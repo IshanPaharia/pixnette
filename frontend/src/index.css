@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas-bg: #0e0e10;
+  --color-surface: #18181c;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-text-main: #e8e8ec;
+  --color-accent: #3ecf6e;
+
+  --font-mono: "Space Mono", monospace;
+  --font-sans: "DM Sans", sans-serif;
+}
+
+body {
+  background-color: var(--color-canvas-bg);
+  color: var(--color-text-main);
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Hide scrollbars */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Base utility for crisp pixel rendering if not using the Tailwind arbitrary class */
+.rendering-pixelated {
+  image-rendering: pixelated;
+}

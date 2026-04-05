@@ -41,16 +41,22 @@ async function flushPendingWrites(pool) {
 ).join(', ')
 const params = batch.flatMap(p => [p.x, p.y, p.color, p.fingerprint])
 
-await pool.query(
-    `INSERT INTO pixels (x, y, color, fingerprint, placed_at)
-    VALUES ${values}
-    ON CONFLICT (x, y) DO UPDATE
-    SET color = EXCLUDED.color,
-    fingerprint = EXCLUDED.fingerprint,
-    placed_at = EXCLUDED.placed_at`,
-    params
-)
-console.log(`Flushed ${batch.length} pixel writes to DB`)
+    try {
+        await pool.query(
+            `INSERT INTO pixels (x, y, color, fingerprint, placed_at)
+            VALUES ${values}
+            ON CONFLICT (x, y) DO UPDATE
+            SET color = EXCLUDED.color,
+            fingerprint = EXCLUDED.fingerprint,
+            placed_at = EXCLUDED.placed_at`,
+            params
+        )
+        console.log(`Flushed ${batch.length} pixel writes to DB`)
+    } catch (err) {
+        console.error(`❌ DB Flush Failed: ${err.message}`)
+        // Restore failed writes to the buffer (limited memory since it only holds 262144 unique pixels max for a 512x512 canvas)
+        batch.forEach(p => queuePixelWrite(p.x, p.y, p.color, p.fingerprint))
+    }
 }
 
 module.exports = { loadCanvasFromDB, getPixel, setPixel, getFullCanvas, canvasState, queuePixelWrite, flushPendingWrites }
