@@ -112,7 +112,7 @@ function App() {
   }, [cooldownRemaining, socket, selectedColor, updatePixel, triggerCooldown]);
 
   return (
-    <div className="w-full h-screen relative bg-[var(--color-canvas-bg)] text-[var(--color-text-main)] overflow-hidden font-sans">
+    <div className="w-full h-[100dvh] relative bg-[var(--color-canvas-bg)] text-[var(--color-text-main)] overflow-hidden font-sans">
       <TopBar liveCount={liveCount} isConnected={isConnected} cursor={hoverCursor || {x: -1, y: -1}} />
       
       <Canvas 
