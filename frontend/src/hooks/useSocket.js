@@ -8,7 +8,19 @@ export function useSocket() {
 
   useEffect(() => {
     const url = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
-    const socket = io(url);
+    
+    // Get or generate a unique persistent Device ID
+    let deviceId = localStorage.getItem('pb_device_id');
+    if (!deviceId) {
+      deviceId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+      localStorage.setItem('pb_device_id', deviceId);
+    }
+
+    // Send deviceId securely in connection handshake auth
+    const socket = io(url, {
+      auth: { deviceId }
+    });
+    
     socketRef.current = socket;
 
     socket.on('connect', () => setIsConnected(true));

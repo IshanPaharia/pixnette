@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { TopBar } from './components/TopBar';
 import { Toolbar } from './components/Toolbar';
 import { Canvas } from './components/Canvas';
@@ -16,6 +16,7 @@ function App() {
   const [selectedColor, setSelectedColor] = useState(0);
   const [hoverCursor, setHoverCursor] = useState(null);
   const [flash, setFlash] = useState(null);
+  const isFirstConnect = useRef(true);
 
   useEffect(() => {
     loadBoard();
@@ -35,14 +36,21 @@ function App() {
       updatePixel(x, y, color);
     };
     
-    const onPlaceError = ({ message }) => {
+    const onPlaceError = ({ message, x, y, color }) => {
       showFlash(message);
-      // Heavy revert, syncs full canvas to fix optimistic placing
-      loadBoard(); 
+      if (x !== undefined && y !== undefined && color !== undefined) {
+        updatePixel(x, y, color);
+      } else {
+        loadBoard(); 
+      }
     };
-
+    
     const onConnect = () => {
-      loadBoard();
+      if (isFirstConnect.current) {
+        isFirstConnect.current = false;
+      } else {
+        loadBoard();
+      }
     };
 
     const onCooldownSync = ({ remaining }) => {

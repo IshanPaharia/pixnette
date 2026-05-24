@@ -3,7 +3,7 @@ const express = require('express')
 const http = require('http')
 const crypto = require('crypto')
 const { Server } = require('socket.io')
-const { loadCanvasFromDB, flushPendingWrites, setPixel, queuePixelWrite } = require('./canvas')
+const { loadCanvasFromDB, flushPendingWrites, setPixel, queuePixelWrite, getPixel } = require('./canvas')
 const { isOnCooldown, setCooldown, getCooldownRemaining } = require('./cooldown')
 const cors = require('cors')
 const pool = require('./db')
@@ -32,6 +32,13 @@ let connectedCount = 0
 
 // Identifies a user by hashing their IP + User-Agent (no login needed)
 function getFingerprint(socket) {
+  // Use client-generated UUID if provided
+  const deviceId = socket.handshake.auth?.deviceId;
+  if (deviceId && typeof deviceId === 'string' && deviceId.length >= 8) {
+    return deviceId.slice(0, 36); // Sanitized UUID length limit
+  }
+
+  // Fallback to IP + User-Agent hash
   const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0]?.trim()
            || socket.handshake.address
   const ua = socket.handshake.headers['user-agent'] || ''
@@ -50,6 +57,16 @@ function checkRateLimit(fingerprint) {
   return entry.count > 5 // true = rate limit exceeded → disconnect
 }
 
+// Periodic rate limiting cleanup to prevent memory leak
+setInterval(() => {
+  const now = Date.now()
+  for (const [fp, entry] of eventRates.entries()) {
+    if (now > entry.resetAt) {
+      eventRates.delete(fp)
+    }
+  }
+}, 60 * 1000)
+
 // --- Socket.io Events ---
 
 io.on('connection', (socket) => {
@@ -63,12 +80,20 @@ io.on('connection', (socket) => {
   socket.emit('cooldown_sync', { remaining: getCooldownRemaining(fingerprint) })
 
   // Handle pixel placement
-  socket.on('place_pixel', ({ x, y, color }) => {
+  socket.on('place_pixel', (data) => {
     // Rate limit check — disconnect flood attackers
     if (checkRateLimit(fingerprint)) {
       socket.disconnect(true)
       return
     }
+
+    // Validate payload shape to prevent crashes
+    if (!data || typeof data !== 'object') {
+      socket.emit('place_error', { message: 'Invalid payload format' })
+      return
+    }
+
+    const { x, y, color } = data
 
     // --- Validation ---
     const validTypes = typeof x === 'number' && typeof y === 'number' && typeof color === 'number'
@@ -77,13 +102,15 @@ io.on('connection', (socket) => {
     const validColor = color >= 0 && color <= 15
 
     if (!validTypes || !validIntegers || !validBounds || !validColor) {
-      socket.emit('place_error', { message: 'Invalid pixel data' })
+      const origColor = (validBounds && validIntegers) ? getPixel(x, y) : 0
+      socket.emit('place_error', { message: 'Invalid pixel data', x, y, color: origColor })
       return
     }
 
     if (isOnCooldown(fingerprint)) {
       const remaining = getCooldownRemaining(fingerprint)
-      socket.emit('place_error', { message: `Cooldown: ${remaining}s remaining` })
+      const origColor = getPixel(x, y)
+      socket.emit('place_error', { message: `Cooldown: ${remaining}s remaining`, x, y, color: origColor })
       return
     }
 
@@ -129,9 +156,18 @@ startServer()
 // Flush pending pixel writes to DB every WRITE_BATCH_INTERVAL_MS (default 2s)
 setInterval(() => flushPendingWrites(pool), parseInt(process.env.WRITE_BATCH_INTERVAL_MS) || 2000)
 
-// Graceful shutdown — flush pending writes before Railway kills the process
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received — flushing writes before shutdown...')
+// Graceful shutdown handler
+const handleShutdown = async (signal) => {
+  console.log(`\n${signal} received — flushing writes and closing pool...`)
   await flushPendingWrites(pool)
+  try {
+    await pool.end()
+    console.log('✅ Database connections closed gracefully')
+  } catch (err) {
+    console.error('❌ Error closing database connections:', err.message)
+  }
   process.exit(0)
-})
+}
+
+process.on('SIGTERM', () => handleShutdown('SIGTERM'))
+process.on('SIGINT', () => handleShutdown('SIGINT'))
