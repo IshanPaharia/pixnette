@@ -13,18 +13,34 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
   const lastPinchDistanceRef = useRef(null);
   const panStartRef = useRef({ x: 0, y: 0, originX: 0, originY: 0 });
 
+  // Helper to calculate canvas centering in the visible viewport (between TopBar and Toolbar)
+  const getCenteredTransform = useCallback(() => {
+    if (!wrapRef.current) return { scale: 2, x: 0, y: 0 };
+    const { clientWidth, clientHeight } = wrapRef.current;
+    
+    const topOffset = 48; // h-12 TopBar
+    let bottomOffset = 72; // default mobile Toolbar height
+    if (window.innerWidth >= 1024) {
+      bottomOffset = 88;
+    } else if (window.innerWidth >= 640) {
+      bottomOffset = 80;
+    }
+    
+    const usableHeight = clientHeight - topOffset - bottomOffset;
+    const s = (Math.min(clientWidth, usableHeight) / CANVAS_SIZE) * 0.85;
+    const initialScale = Math.max(1, Math.floor(s));
+    
+    return {
+      scale: initialScale,
+      x: Math.floor((clientWidth - CANVAS_SIZE * initialScale) / 2),
+      y: topOffset + Math.floor((usableHeight - CANVAS_SIZE * initialScale) / 2)
+    };
+  }, []);
+
   // Initial centering
   useEffect(() => {
-    if (!wrapRef.current) return;
-    const { clientWidth, clientHeight } = wrapRef.current;
-    const s = (Math.min(clientWidth, clientHeight) / CANVAS_SIZE) * 0.85;
-    const initialScale = Math.max(1, Math.floor(s));
-    setTransform({
-        scale: initialScale,
-        x: Math.floor((clientWidth - CANVAS_SIZE * initialScale) / 2),
-        y: Math.floor((clientHeight - CANVAS_SIZE * initialScale) / 2)
-    });
-  }, []);
+    setTransform(getCenteredTransform());
+  }, [getCenteredTransform]);
 
   const zoomAtPoint = useCallback((multiplier, clientX, clientY) => {
     if (!wrapRef.current) return;
@@ -175,15 +191,7 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
   }, [zoomAtPoint]);
 
   const resetZoom = () => {
-    if (!wrapRef.current) return;
-    const { clientWidth, clientHeight } = wrapRef.current;
-    const s = (Math.min(clientWidth, clientHeight) / CANVAS_SIZE) * 0.85;
-    const initialScale = Math.max(1, Math.floor(s));
-    setTransform({
-        scale: initialScale,
-        x: Math.floor((clientWidth - CANVAS_SIZE * initialScale) / 2),
-        y: Math.floor((clientHeight - CANVAS_SIZE * initialScale) / 2)
-    });
+    setTransform(getCenteredTransform());
   };
 
   return (
