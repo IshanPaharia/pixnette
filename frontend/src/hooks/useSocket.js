@@ -23,9 +23,12 @@ export function useSocket() {
     }
 
     // 2. Create the socket inside the effect
+    // WebSockets-only: skip HTTP polling entirely, no sticky sessions needed
+    // upgrade: false prevents Socket.io from attempting HTTP→WebSocket upgrade handshake
     const s = io(url, {
       auth: { deviceId },
       transports: ['websocket'],
+      upgrade: false,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000
     });
