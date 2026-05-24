@@ -1,5 +1,6 @@
 require('dotenv').config({ path: __dirname + '/.env' })
 const { Pool } = require('pg')
+const { pubClient } = require('./redis')
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -7,17 +8,26 @@ const pool = new Pool({
 })
 
 async function erase() {
-  console.log('Connecting to database...')
+  console.log('Connecting to database and Redis...')
   try {
+    // 1. Clear Postgres
     await pool.query('TRUNCATE TABLE pixels RESTART IDENTITY')
     console.log('✅ TRUNCATED pixels table')
-    await pool.query('TRUNCATE TABLE cooldowns RESTART IDENTITY')
-    console.log('✅ TRUNCATED cooldowns table')
+
+    // 2. Clear Redis cache (canvas state, write queue, and active cooldowns)
+    await pubClient.connect()
+    await pubClient.flushDb()
+    console.log('✅ FLUSHED Redis cache')
   } catch (err) {
     console.error('❌ Failed to erase data:', err.message)
     throw err
   } finally {
     await pool.end()
+    try {
+      await pubClient.disconnect()
+    } catch (e) {
+      // Ignore if already disconnected
+    }
   }
 }
 

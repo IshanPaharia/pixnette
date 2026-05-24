@@ -25,6 +25,7 @@ async function setup() {
   `)
   console.log('✅ pixels table ready')
 
+  /*
   await pool.query(`
     CREATE TABLE IF NOT EXISTS cooldowns (
       fingerprint TEXT PRIMARY KEY,
@@ -32,6 +33,7 @@ async function setup() {
     )
   `)
   console.log('✅ cooldowns table ready')
+  */
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_pixels_placed_at ON pixels(placed_at)
