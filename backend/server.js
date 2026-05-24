@@ -3,10 +3,13 @@ const express = require('express')
 const http = require('http')
 const crypto = require('crypto')
 const { Server } = require('socket.io')
-const { loadCanvasFromDB, flushPendingWrites, setPixel, queuePixelWrite, getPixel } = require('./canvas')
-const { isOnCooldown, setCooldown, getCooldownRemaining } = require('./cooldown')
+const { loadCanvasFromDB, setPixel, getPixel } = require('./canvas.js')
+const { queuePixelWrite, flushQueueToPostgres } = require('./writeQueue.js')
+const { isOnCooldown, setCooldown, getCooldownRemaining } = require('./cooldown.js')
 const cors = require('cors')
 const pool = require('./db')
+const { createAdapter } = require('@socket.io/redis-adapter')
+const { pubClient, subClient, connectRedis } = require('./redis.js')
 
 const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE) || 512
 const COOLDOWN_SECONDS = parseInt(process.env.COOLDOWN_SECONDS) || 30
@@ -25,8 +28,6 @@ const io = new Server(server, {
 app.use(cors({ origin: FRONTEND_URL }))
 app.use(express.json())
 app.use('/api', require('./routes/api'))
-
-let connectedCount = 0
 
 // --- Helpers ---
 
@@ -69,25 +70,30 @@ setInterval(() => {
 
 // --- Socket.io Events ---
 
-io.on('connection', (socket) => {
+io.on('connection', async (socket) => { // Added 'async'
   const fingerprint = getFingerprint(socket)
-  connectedCount++
 
+  console.log(`🔌 Client connected on port ${process.env.PORT || 3001} (Fingerprint: ${fingerprint})`);
   // Tell all clients the current user count
-  io.emit('user_count', connectedCount)
+  try {
+    const sockets = await io.fetchSockets()
+    console.log(`📊 Total cluster sockets fetched: ${sockets.length}`);
+    
+    io.emit('user_count', sockets.length)
+  } catch (err) {
+    console.error('Failed to fetch sockets:', err)
+  }
 
   // Tell this new client how long their cooldown has left (0 if none)
-  socket.emit('cooldown_sync', { remaining: getCooldownRemaining(fingerprint) })
+  socket.emit('cooldown_sync', { remaining: await getCooldownRemaining(fingerprint) })
 
   // Handle pixel placement
-  socket.on('place_pixel', (data) => {
-    // Rate limit check — disconnect flood attackers
+  socket.on('place_pixel', async (data) => { // Added 'async'
     if (checkRateLimit(fingerprint)) {
       socket.disconnect(true)
       return
     }
 
-    // Validate payload shape to prevent crashes
     if (!data || typeof data !== 'object') {
       socket.emit('place_error', { message: 'Invalid payload format' })
       return
@@ -95,40 +101,44 @@ io.on('connection', (socket) => {
 
     const { x, y, color } = data
 
-    // --- Validation ---
     const validTypes = typeof x === 'number' && typeof y === 'number' && typeof color === 'number'
     const validIntegers = Number.isInteger(x) && Number.isInteger(y) && Number.isInteger(color)
     const validBounds = x >= 0 && x < CANVAS_SIZE && y >= 0 && y < CANVAS_SIZE
     const validColor = color >= 0 && color <= 15
 
     if (!validTypes || !validIntegers || !validBounds || !validColor) {
-      const origColor = (validBounds && validIntegers) ? getPixel(x, y) : 0
+      const origColor = (validBounds && validIntegers) ? await getPixel(x, y) : 0
       socket.emit('place_error', { message: 'Invalid pixel data', x, y, color: origColor })
       return
     }
 
-    if (isOnCooldown(fingerprint)) {
-      const remaining = getCooldownRemaining(fingerprint)
-      const origColor = getPixel(x, y)
+    if (await isOnCooldown(fingerprint)) {
+      const remaining = await getCooldownRemaining(fingerprint)
+      const origColor = await getPixel(x, y)
       socket.emit('place_error', { message: `Cooldown: ${remaining}s remaining`, x, y, color: origColor })
       return
     }
 
-    // --- Valid placement ---
-    setPixel(x, y, color)                        // update in-memory canvas
-    queuePixelWrite(x, y, color, fingerprint)    // schedule DB write (batched)
-    setCooldown(fingerprint)                     // start cooldown timer
+    await setPixel(x, y, color)
+    await queuePixelWrite(x, y, color, fingerprint)
+    await setCooldown(fingerprint)
 
-    // Broadcast to ALL clients (frontend deduplicates its own placement)
     io.emit('pixel_update', { x, y, color })
-
-    // Tell this client their new cooldown
     socket.emit('cooldown_sync', { remaining: COOLDOWN_SECONDS })
   })
 
-  socket.on('disconnect', () => {
-    connectedCount = Math.max(0, connectedCount - 1) // never go below 0
-    io.emit('user_count', connectedCount)
+  // 2. Fetch cluster-wide sockets and broadcast on disconnect
+  socket.on('disconnect', async () => { // Added 'async'
+
+    console.log(`❌ Client disconnected from port ${process.env.PORT || 3001}`);
+
+    try {
+      const sockets = await io.fetchSockets()
+      console.log(`📊 Total cluster sockets fetched: ${sockets.length}`);
+      io.emit('user_count', sockets.length)
+    } catch (err) {
+      console.error('Failed to fetch sockets on disconnect:', err)
+    }
   })
 })
 
@@ -137,6 +147,16 @@ io.on('connection', (socket) => {
 // Load canvas from DB on startup, then start server
 // If DB is unreachable (e.g. network blocked locally), start anyway with empty canvas
 async function startServer() {
+  try {
+    // Connect to Redis first, since Socket.io requires it
+    await connectRedis();
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log('✅ Socket.io Redis adapter attached');
+  } catch (err) {
+    console.error('❌ Failed to initialize Redis on startup:', err.message);
+    process.exit(1); // Exit because the scaling tier requires Redis to run
+  }
+
   try {
     await loadCanvasFromDB(pool)
     console.log('✅ Canvas loaded from DB')
@@ -152,14 +172,13 @@ async function startServer() {
 
 startServer()
 
-
 // Flush pending pixel writes to DB every WRITE_BATCH_INTERVAL_MS (default 2s)
-setInterval(() => flushPendingWrites(pool), parseInt(process.env.WRITE_BATCH_INTERVAL_MS) || 2000)
+setInterval(() => flushQueueToPostgres(pool), parseInt(process.env.WRITE_BATCH_INTERVAL_MS) || 2000)
 
 // Graceful shutdown handler
 const handleShutdown = async (signal) => {
   console.log(`\n${signal} received — flushing writes and closing pool...`)
-  await flushPendingWrites(pool)
+  await flushQueueToPostgres(pool)
   try {
     await pool.end()
     console.log('✅ Database connections closed gracefully')

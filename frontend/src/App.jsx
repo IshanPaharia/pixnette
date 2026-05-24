@@ -9,7 +9,8 @@ import { useCanvas } from './hooks/useCanvas';
 import { Analytics } from "@vercel/analytics/react"
 
 function App() {
-  const { socket, isConnected, liveCount } = useSocket();
+  const { socketRef, isConnected, liveCount } = useSocket();
+  // const socket = socketRef.current;
   const { cooldownRemaining, triggerCooldown, syncCooldown } = useCooldown();
   const { boardRef, overlayRef, loadBoard, updatePixel, drawHoverPixel, getPixelColor } = useCanvas();
 
@@ -28,6 +29,7 @@ function App() {
   };
 
   useEffect(() => {
+    const socket = socketRef.current;
     if (!socket) return;
     
     // Server emits pixel_update to all clients. We optimistically update ours, 
@@ -68,7 +70,7 @@ function App() {
       socket.off('connect', onConnect);
       socket.off('cooldown_sync', onCooldownSync);
     };
-  }, [socket, loadBoard, updatePixel, syncCooldown]);
+  }, [socketRef, loadBoard, updatePixel, syncCooldown]);
 
   const handleHover = useCallback((h) => {
     setHoverCursor(h);
@@ -97,28 +99,28 @@ function App() {
     }
 
     const { x, y } = hoverCursor;
-    
+    const socket = socketRef.current;
     if (socket) {
       socket.emit('place_pixel', { x, y, color: selectedColor });
     }
     
     updatePixel(x, y, selectedColor);
     triggerCooldown();
-  }, [cooldownRemaining, hoverCursor, socket, selectedColor, updatePixel, triggerCooldown]);
+  }, [cooldownRemaining, hoverCursor, socketRef, selectedColor, updatePixel, triggerCooldown]);
 
   const handleClickPixel = useCallback((x, y) => {
     if (cooldownRemaining > 0) {
       showFlash(`Cooldown: ${cooldownRemaining}s remaining`);
       return;
     }
-
+    const socket = socketRef.current;
     if (socket) {
       socket.emit('place_pixel', { x, y, color: selectedColor });
     }
     
     updatePixel(x, y, selectedColor);
     triggerCooldown();
-  }, [cooldownRemaining, socket, selectedColor, updatePixel, triggerCooldown]);
+  }, [cooldownRemaining, socketRef, selectedColor, updatePixel, triggerCooldown]);
 
   return (
     <div className="w-full h-[100dvh] relative bg-[var(--color-canvas-bg)] text-[var(--color-text-main)] overflow-hidden font-sans">

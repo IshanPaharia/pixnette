@@ -7,30 +7,43 @@ export function useSocket() {
   const socketRef = useRef(null);
 
   useEffect(() => {
-    const url = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+    // 1. Parse URL & Device ID inside the effect (pure render phase!)
+    const urlParams = new URLSearchParams(window.location.search);
+    const portOverride = urlParams.get('port');
+    const url = portOverride 
+      ? `http://localhost:${portOverride}` 
+      : (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001');
     
-    // Get or generate a unique persistent Device ID
     let deviceId = localStorage.getItem('pb_device_id');
     if (!deviceId) {
-      deviceId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+      deviceId = crypto.randomUUID 
+        ? crypto.randomUUID() 
+        : Math.random().toString(36).substring(2) + Date.now().toString(36);
       localStorage.setItem('pb_device_id', deviceId);
     }
 
-    // Send deviceId securely in connection handshake auth
-    const socket = io(url, {
-      auth: { deviceId }
+    // 2. Create the socket inside the effect
+    const s = io(url, {
+      auth: { deviceId },
+      transports: ['websocket'],
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000
     });
     
-    socketRef.current = socket;
+    socketRef.current = s;
 
-    socket.on('connect', () => setIsConnected(true));
-    socket.on('disconnect', () => setIsConnected(false));
-    socket.on('user_count', (count) => setLiveCount(count));
+    // 3. Register event handlers
+    s.on('connect', () => setIsConnected(true));
+    s.on('disconnect', () => setIsConnected(false));
+    s.on('user_count', (count) => setLiveCount(count));
 
+    // 4. Cleanup: disconnect and reset the ref so the next mount starts fresh
     return () => {
-      socket.disconnect();
+      s.disconnect();
+      socketRef.current = null;
     };
   }, []);
 
-  return { socket: socketRef.current, isConnected, liveCount };
+  // Return socketRef itself to avoid linter warnings during render
+  return { socketRef, isConnected, liveCount };
 }

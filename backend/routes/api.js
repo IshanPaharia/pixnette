@@ -1,15 +1,15 @@
 const express = require('express')
 const router = express.Router()
-const { getFullCanvas } = require('../canvas')
+const { getFullCanvas } = require('../canvas.js')
 
 const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE) || 512
 const TOTAL = CANVAS_SIZE * CANVAS_SIZE
 
 // GET /api/canvas
 // Returns the full 512x512 board as a JSON array
-router.get('/canvas', (req, res) => {
+router.get('/canvas', async (req, res) => {
   try {
-    const canvas = getFullCanvas()
+    const canvas = await getFullCanvas()
     res.json({ canvas })
   } catch (error) {
     console.error('Error fetching canvas:', error)
