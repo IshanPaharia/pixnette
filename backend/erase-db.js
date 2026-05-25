@@ -11,8 +11,8 @@ async function erase() {
   console.log('Connecting to database and Redis...')
   try {
     // 1. Clear Postgres
-    await pool.query('TRUNCATE TABLE pixels RESTART IDENTITY')
-    console.log('✅ TRUNCATED pixels table')
+    await pool.query('TRUNCATE TABLE pixels, pixel_history RESTART IDENTITY')
+    console.log('✅ TRUNCATED pixels and pixel_history table')
 
     // 2. Clear Redis cache (canvas state, write queue, and active cooldowns)
     await pubClient.connect()

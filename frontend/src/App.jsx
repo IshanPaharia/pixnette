@@ -6,11 +6,12 @@ import { Tooltip } from './components/Tooltip';
 import { useSocket } from './hooks/useSocket';
 import { useCooldown } from './hooks/useCooldown';
 import { useCanvas } from './hooks/useCanvas';
-import { Analytics } from "@vercel/analytics/react"
+import { Analytics } from "@vercel/analytics/react";
+import { TimelapseView } from './components/TimelapseView';
 
 function App() {
   const { socketRef, isConnected, liveCount } = useSocket();
-  // const socket = socketRef.current;
+  const [view, setView] = useState('canvas');
   const { cooldownRemaining, triggerCooldown, syncCooldown } = useCooldown();
   const { boardRef, overlayRef, loadBoard, updatePixel, drawHoverPixel, getPixelColor } = useCanvas();
 
@@ -18,6 +19,38 @@ function App() {
   const [hoverCursor, setHoverCursor] = useState(null);
   const [flash, setFlash] = useState(null);
   const isFirstConnect = useRef(true);
+
+  // Prevent browser native pinch/double-tap zoom on mobile devices
+  useEffect(() => {
+    const preventPinch = (e) => {
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    };
+    
+    let lastTouchEnd = 0;
+    const preventDoubleTap = (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    };
+
+    const preventGesture = (e) => {
+      e.preventDefault();
+    };
+
+    document.addEventListener('touchstart', preventPinch, { passive: false });
+    document.addEventListener('touchend', preventDoubleTap, { passive: false });
+    document.addEventListener('gesturestart', preventGesture, { passive: false });
+
+    return () => {
+      document.removeEventListener('touchstart', preventPinch);
+      document.removeEventListener('touchend', preventDoubleTap);
+      document.removeEventListener('gesturestart', preventGesture);
+    };
+  }, []);
 
   useEffect(() => {
     loadBoard();
@@ -94,7 +127,7 @@ function App() {
     }
     
     if (!hoverCursor) {
-      showFlash("Hover over a pixel to place");
+      showFlash("Select a pixel to place");
       return;
     }
 
@@ -122,9 +155,18 @@ function App() {
     triggerCooldown();
   }, [cooldownRemaining, socketRef, selectedColor, updatePixel, triggerCooldown]);
 
+  if (view === 'timelapse') {
+    return <TimelapseView onExit={() => setView('canvas')} />;
+  }
+
   return (
     <div className="w-full h-[100dvh] relative bg-[var(--color-canvas-bg)] text-[var(--color-text-main)] overflow-hidden font-sans">
-      <TopBar liveCount={liveCount} isConnected={isConnected} cursor={hoverCursor || {x: -1, y: -1}} />
+      <TopBar 
+        liveCount={liveCount} 
+        isConnected={isConnected} 
+        cursor={hoverCursor || {x: -1, y: -1}} 
+        onEnterTimelapse={() => setView('timelapse')}
+      />
       
       <Canvas 
         boardRef={boardRef} 

@@ -5,12 +5,24 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
   const wrapRef = useRef(null);
   
   // Consolidate transform state for atomic updates
-  const [transform, setTransform] = useState({ scale: 2, x: 0, y: 0 });
+  const [transform, setTransformState] = useState({ scale: 2, x: 0, y: 0 });
+  const transformRef = useRef(transform);
+  
+  const setTransform = useCallback((updater) => {
+    setTransformState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      transformRef.current = next;
+      return next;
+    });
+  }, []);
+
   const [isPanning, setIsPanning] = useState(false);
 
-  // Track pointers for multi-touch (pinch-to-zoom)
+  // Track pointers for multi-touch (pinch-to-zoom) and drag vs tap tracking
   const pointersRef = useRef(new Map());
+  const pointerDownDetailsRef = useRef(new Map());
   const lastPinchDistanceRef = useRef(null);
+  const lastPinchMidRef = useRef(null);
   const panStartRef = useRef({ x: 0, y: 0, originX: 0, originY: 0 });
 
   // Helper to calculate canvas centering in the visible viewport (between TopBar and Toolbar)
@@ -53,14 +65,13 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
         const ratio = newScale / prev.scale;
         
         // The core math to keep the point under the cursor stable
-        // newOffset = focal - (focal - oldOffset) * ratio
         return {
             scale: newScale,
             x: focalX - (focalX - prev.x) * ratio,
             y: focalY - (focalY - prev.y) * ratio
         };
     });
-  }, []);
+  }, [setTransform]);
 
   const handleWheel = useCallback((e) => {
     e.preventDefault();
@@ -85,47 +96,88 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
     const isTouch = e.pointerType === 'touch';
     const isSpecialClick = e.button === 1 || (e.button === 0 && e.altKey);
 
+    pointerDownDetailsRef.current.set(e.pointerId, {
+      x: e.clientX,
+      y: e.clientY,
+      time: Date.now(),
+      moved: false
+    });
+
     if (isTouch || isSpecialClick) {
-      setIsPanning(true);
-      panStartRef.current = {
-        x: e.clientX,
-        y: e.clientY,
-        originX: transform.x,
-        originY: transform.y
-      };
-      
-      if (isTouch) onHover(null); 
+      if (pointersRef.current.size === 1) {
+        setIsPanning(true);
+        panStartRef.current = {
+          x: e.clientX,
+          y: e.clientY,
+          originX: transformRef.current.x,
+          originY: transformRef.current.y
+        };
+        if (isTouch) onHover(null); 
+      } else if (pointersRef.current.size === 2) {
+        setIsPanning(false);
+        const pts = Array.from(pointersRef.current.values());
+        lastPinchDistanceRef.current = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        lastPinchMidRef.current = {
+          x: (pts[0].x + pts[1].x) / 2,
+          y: (pts[0].y + pts[1].y) / 2
+        };
+      }
     }
   };
 
   const handlePointerMove = (e) => {
     const pointers = pointersRef.current;
-    
-    // Track mouse movement even without click; required for hover.
-    // For touch, we only care if they are already pressing.
     const isMouse = e.pointerType === 'mouse';
     if (!isMouse && !pointers.has(e.pointerId)) return;
     
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    // Track movement distance for tap detection
+    const downDetails = pointerDownDetailsRef.current.get(e.pointerId);
+    if (downDetails) {
+      const dist = Math.hypot(e.clientX - downDetails.x, e.clientY - downDetails.y);
+      if (dist > 6) {
+        downDetails.moved = true;
+      }
+    }
 
     // Multi-touch Pinch
     if (pointers.size === 2) {
         setIsPanning(false); 
         const pts = Array.from(pointers.values());
         const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        const midX = (pts[0].x + pts[1].x) / 2;
+        const midY = (pts[0].y + pts[1].y) / 2;
         
-        if (lastPinchDistanceRef.current !== null) {
+        if (lastPinchDistanceRef.current !== null && lastPinchMidRef.current !== null) {
             const delta = dist / lastPinchDistanceRef.current;
-            const midX = (pts[0].x + pts[1].x) / 2;
-            const midY = (pts[0].y + pts[1].y) / 2;
-            zoomAtPoint(delta, midX, midY);
+            
+            setTransform(prev => {
+                const newScale = clamp(prev.scale * delta, 0.5, 80);
+                const ratio = newScale / prev.scale;
+                
+                // Keep the canvas under the moving midpoint stable
+                const zoomedX = midX - (midX - prev.x) * ratio;
+                const zoomedY = midY - (midY - prev.y) * ratio;
+                
+                // Add translation of the midpoint itself
+                const dx = midX - lastPinchMidRef.current.x;
+                const dy = midY - lastPinchMidRef.current.y;
+                
+                return {
+                    scale: newScale,
+                    x: zoomedX + dx,
+                    y: zoomedY + dy
+                };
+            });
         }
         lastPinchDistanceRef.current = dist;
+        lastPinchMidRef.current = { x: midX, y: midY };
         return;
     }
 
-    // Panning
-    if (isPanning) {
+    // Panning (only when 1 pointer is down and isPanning is true)
+    if (isPanning && pointers.size === 1) {
       const dx = e.clientX - panStartRef.current.x;
       const dy = e.clientY - panStartRef.current.y;
       setTransform(prev => ({
@@ -137,12 +189,12 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
       return;
     }
     
-    // Mouse Hover (only when not specifically multi-touching or panning)
-    if (e.pointerType === 'mouse' && pointers.size <= 1 && !isPanning) {
+    // Mouse Hover (only when mouse is not dragging)
+    if (e.pointerType === 'mouse' && pointers.size === 0) {
         const wrap = wrapRef.current;
         if (!wrap || !onHover) return;
         const rect = wrap.getBoundingClientRect();
-        const { x, y } = canvasToPixel(e.clientX, e.clientY, rect, transform.x, transform.y, transform.scale);
+        const { x, y } = canvasToPixel(e.clientX, e.clientY, rect, transformRef.current.x, transformRef.current.y, transformRef.current.scale);
         
         if (inBounds(x, y)) {
           onHover({ x, y, clientX: e.clientX, clientY: e.clientY });
@@ -153,12 +205,48 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
   };
 
   const handlePointerUp = (e) => {
-    pointersRef.current.delete(e.pointerId);
-    if (pointersRef.current.size < 2) {
-        lastPinchDistanceRef.current = null;
+    const downDetails = pointerDownDetailsRef.current.get(e.pointerId);
+    
+    // Tap detection: touch pointer, didn't move much, and tap duration is short
+    if (e.pointerType === 'touch' && downDetails && !downDetails.moved && (Date.now() - downDetails.time < 300)) {
+      const wrap = wrapRef.current;
+      if (wrap && onHover) {
+        const rect = wrap.getBoundingClientRect();
+        const { x, y } = canvasToPixel(e.clientX, e.clientY, rect, transformRef.current.x, transformRef.current.y, transformRef.current.scale);
+        if (inBounds(x, y)) {
+          onHover({ x, y, clientX: e.clientX, clientY: e.clientY });
+        } else {
+          onHover(null);
+        }
+      }
     }
-    if (pointersRef.current.size === 0) {
-        setIsPanning(false);
+
+    pointersRef.current.delete(e.pointerId);
+    pointerDownDetailsRef.current.delete(e.pointerId);
+
+    // If we transition back to 1 finger from 2, we can resume panning with the remaining finger
+    if (pointersRef.current.size === 1) {
+      const remainingPointer = Array.from(pointersRef.current.entries())[0];
+      const pId = remainingPointer[0];
+      const pCoords = remainingPointer[1];
+      
+      setIsPanning(true);
+      panStartRef.current = {
+        x: pCoords.x,
+        y: pCoords.y,
+        originX: transformRef.current.x,
+        originY: transformRef.current.y
+      };
+      
+      const rDownDetails = pointerDownDetailsRef.current.get(pId);
+      if (rDownDetails) {
+        rDownDetails.x = pCoords.x;
+        rDownDetails.y = pCoords.y;
+      }
+    } else if (pointersRef.current.size === 0) {
+      setIsPanning(false);
+      lastPinchDistanceRef.current = null;
+      lastPinchMidRef.current = null;
     }
   };
 
@@ -168,7 +256,7 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
     const wrap = wrapRef.current;
     if (!wrap) return;
     const rect = wrap.getBoundingClientRect();
-    const { x, y } = canvasToPixel(e.clientX, e.clientY, rect, transform.x, transform.y, transform.scale);
+    const { x, y } = canvasToPixel(e.clientX, e.clientY, rect, transformRef.current.x, transformRef.current.y, transformRef.current.scale);
     
     if (inBounds(x, y)) {
       onClickPixel(x, y);

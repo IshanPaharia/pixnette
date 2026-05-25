@@ -63,7 +63,9 @@ async function flushQueueToPostgres(pool) {
   }
 
   // 5. Bulk write chunked records to Postgres
+  const client = await pool.connect()
   try {
+    await client.query('BEGIN')
     const CHUNK_SIZE = 4000
     for (let i = 0; i < batch.length; i += CHUNK_SIZE) {
       const chunk = batch.slice(i, i + CHUNK_SIZE)
@@ -71,8 +73,8 @@ async function flushQueueToPostgres(pool) {
         `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4}, NOW())`
       ).join(', ')
       const params = chunk.flatMap(p => [p.x, p.y, p.color, p.fingerprint])
-
-      await pool.query(
+      // 1. Upsert current pixel state using the transaction client
+      await client.query(
         `INSERT INTO pixels (x, y, color, fingerprint, placed_at)
          VALUES ${values}
          ON CONFLICT (x, y) DO UPDATE
@@ -81,46 +83,50 @@ async function flushQueueToPostgres(pool) {
              placed_at = EXCLUDED.placed_at`,
         params
       )
-      console.log(`Flushed chunk of ${chunk.length} writes to DB`)
+      // 2. Append history entries using the transaction client
+      const historyValues = chunk.map((p, idx) =>
+        `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4})`
+      ).join(', ')
+      await client.query(
+        `INSERT INTO pixel_history (x, y, color, fingerprint)
+         VALUES ${historyValues}`,
+        params
+      )
     }
-
+    await client.query('COMMIT')
+    console.log(`✅ Flushed batch of ${batch.length} writes to DB and pixel_history`)
     // Success: Delete the temp key
     await pubClient.del(tempKey)
   } catch (dbErr) {
-    console.error('❌ Database bulk-write failed. Starting merge-back recovery:', dbErr.message)
-
+    await client.query('ROLLBACK')
+    console.error('❌ Database bulk-write failed. Rollback executed. Starting merge-back recovery:', dbErr.message)
     try {
       // 6. Safe Merge-back rollback
-      // Read current active queue to compare timestamps
       const activeQueue = await pubClient.hGetAll('pixel:write:queue')
-
       for (const item of batch) {
         const field = `${item.x},${item.y}`
         const activeValue = activeQueue[field]
-
         let shouldRequeue = true
         if (activeValue) {
           const [, , activeTimestampStr] = activeValue.split(':')
           const activeTimestamp = parseInt(activeTimestampStr, 10)
           
-          // Discard if a newer placement has already overwritten it
           if (activeTimestamp > item.timestamp) {
             shouldRequeue = false
           }
         }
-
         if (shouldRequeue) {
           await pubClient.hSet('pixel:write:queue', field, item.rawValue)
         }
       }
-
       console.log(`✅ Completed merge-back recovery. Restored failed writes.`);
       await pubClient.del(tempKey)
     } catch (recoveryErr) {
       console.error('❌ CRITICAL: Failed to run merge-back recovery:', recoveryErr.message)
     }
+  } finally {
+    client.release()
   }
-
   isFlushing = false
 }
 

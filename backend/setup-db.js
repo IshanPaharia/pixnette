@@ -25,6 +25,23 @@ async function setup() {
   `)
   console.log('✅ pixels table ready')
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pixel_history (
+      id SERIAL PRIMARY KEY,
+      x SMALLINT NOT NULL,
+      y SMALLINT NOT NULL,
+      color SMALLINT NOT NULL,
+      placed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      fingerprint TEXT
+    )
+  `)
+  console.log('✅ pixel_history table ready')
+  
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_pixel_history_placed_at ON pixel_history(placed_at)
+  `)
+  console.log('✅ pixel_history index ready')
+
   /*
   await pool.query(`
     CREATE TABLE IF NOT EXISTS cooldowns (

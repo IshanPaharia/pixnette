@@ -1,13 +1,19 @@
 export function Tooltip({ show, x, y, hex, clientX, clientY }) {
   if (!show) return null;
   
+  // Prevent floating tooltip from going off-screen (especially on small mobile screens)
+  const tooltipWidth = 110;
+  const tooltipHeight = 26;
+  const posX = Math.max(10, Math.min(clientX + 15, window.innerWidth - tooltipWidth - 10));
+  const posY = Math.max(10, Math.min(clientY + 15, window.innerHeight - tooltipHeight - 10));
+
   return (
     <div 
       className="fixed pointer-events-none z-50 bg-black/80 font-mono text-[10px] px-2 py-1 rounded border border-white/10 text-white flex items-center gap-2 shadow-lg"
       style={{
         left: 0,
         top: 0,
-        transform: `translate(${clientX + 15}px, ${clientY + 15}px)`,
+        transform: `translate(${posX}px, ${posY}px)`,
         transition: 'opacity 0.1s',
         opacity: show ? 1 : 0,
         willChange: 'transform'

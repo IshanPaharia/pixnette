@@ -1,6 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { getFullCanvas } = require('../canvas.js')
+const pool = require('../db.js')
 
 const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE) || 512
 const TOTAL = CANVAS_SIZE * CANVAS_SIZE
@@ -26,5 +27,18 @@ router.get('/health', (req, res) => {
     pixels: TOTAL
   })
 })
+
+// GET /api/canvas/history
+// Returns the chronological stream of all pixel placements
+router.get('/canvas/history', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT x, y, color FROM pixel_history ORDER BY id ASC')
+    res.json({ history: result.rows })
+  } catch (error) {
+    console.error('Error fetching canvas history:', error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 
 module.exports = router
