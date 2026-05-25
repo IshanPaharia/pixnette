@@ -1,8 +1,13 @@
-const { createClient } = require('redis');
+const { createClient, RESP_TYPES } = require('redis');
 
 // 1. Create the main publisher client (also handles standard database queries)
 const pubClient = createClient({
   url: process.env.REDIS_URL
+});
+
+// Create a buffer-enabled modifier client that maps RESP3 blob strings to Buffer
+const bufferClient = pubClient.withTypeMapping({
+  [RESP_TYPES.BLOB_STRING]: Buffer
 });
 
 // 2. Duplicate it for the subscriber client
@@ -22,6 +27,7 @@ async function connectRedis() {
 
 module.exports = {
   pubClient,
+  bufferClient,
   subClient,
   connectRedis,
 };

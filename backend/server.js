@@ -89,42 +89,47 @@ io.on('connection', async (socket) => { // Added 'async'
 
   // Handle pixel placement
   socket.on('place_pixel', async (data) => { // Added 'async'
-    if (checkRateLimit(fingerprint)) {
-      socket.disconnect(true)
-      return
+    try {
+      if (checkRateLimit(fingerprint)) {
+        socket.disconnect(true)
+        return
+      }
+
+      if (!data || typeof data !== 'object') {
+        socket.emit('place_error', { message: 'Invalid payload format' })
+        return
+      }
+
+      const { x, y, color } = data
+
+      const validTypes = typeof x === 'number' && typeof y === 'number' && typeof color === 'number'
+      const validIntegers = Number.isInteger(x) && Number.isInteger(y) && Number.isInteger(color)
+      const validBounds = x >= 0 && x < CANVAS_SIZE && y >= 0 && y < CANVAS_SIZE
+      const validColor = color >= 0 && color <= 15
+
+      if (!validTypes || !validIntegers || !validBounds || !validColor) {
+        const origColor = (validBounds && validIntegers) ? await getPixel(x, y) : 0
+        socket.emit('place_error', { message: 'Invalid pixel data', x, y, color: origColor })
+        return
+      }
+
+      if (await isOnCooldown(fingerprint)) {
+        const remaining = await getCooldownRemaining(fingerprint)
+        const origColor = await getPixel(x, y)
+        socket.emit('place_error', { message: `Cooldown: ${remaining}s remaining`, x, y, color: origColor })
+        return
+      }
+
+      await setPixel(x, y, color)
+      await queuePixelWrite(x, y, color, fingerprint)
+      await setCooldown(fingerprint)
+
+      io.emit('pixel_update', { x, y, color })
+      socket.emit('cooldown_sync', { remaining: COOLDOWN_SECONDS })
+    } catch (err) {
+      console.error('Error placing pixel:', err)
+      socket.emit('place_error', { message: 'Server error processing pixel placement' })
     }
-
-    if (!data || typeof data !== 'object') {
-      socket.emit('place_error', { message: 'Invalid payload format' })
-      return
-    }
-
-    const { x, y, color } = data
-
-    const validTypes = typeof x === 'number' && typeof y === 'number' && typeof color === 'number'
-    const validIntegers = Number.isInteger(x) && Number.isInteger(y) && Number.isInteger(color)
-    const validBounds = x >= 0 && x < CANVAS_SIZE && y >= 0 && y < CANVAS_SIZE
-    const validColor = color >= 0 && color <= 15
-
-    if (!validTypes || !validIntegers || !validBounds || !validColor) {
-      const origColor = (validBounds && validIntegers) ? await getPixel(x, y) : 0
-      socket.emit('place_error', { message: 'Invalid pixel data', x, y, color: origColor })
-      return
-    }
-
-    if (await isOnCooldown(fingerprint)) {
-      const remaining = await getCooldownRemaining(fingerprint)
-      const origColor = await getPixel(x, y)
-      socket.emit('place_error', { message: `Cooldown: ${remaining}s remaining`, x, y, color: origColor })
-      return
-    }
-
-    await setPixel(x, y, color)
-    await queuePixelWrite(x, y, color, fingerprint)
-    await setCooldown(fingerprint)
-
-    io.emit('pixel_update', { x, y, color })
-    socket.emit('cooldown_sync', { remaining: COOLDOWN_SECONDS })
   })
 
   // 2. Fetch cluster-wide sockets and broadcast on disconnect
