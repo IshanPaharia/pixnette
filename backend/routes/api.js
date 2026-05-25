@@ -7,14 +7,15 @@ const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE) || 512
 const TOTAL = CANVAS_SIZE * CANVAS_SIZE
 
 // GET /api/canvas
-// Returns the full 512x512 board as a JSON array
+// Returns the full board as a raw binary stream
 router.get('/canvas', async (req, res) => {
   try {
     const canvas = await getFullCanvas()
-    res.json({ canvas })
+    res.setHeader('Content-Type', 'application/octet-stream')
+    res.send(canvas)
   } catch (error) {
     console.error('Error fetching canvas:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).send('Internal server error')
   }
 })
 

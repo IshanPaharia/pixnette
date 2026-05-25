@@ -32,8 +32,8 @@ export function useCanvas() {
       const url = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
       const res = await fetch(`${url}/api/canvas`);
       if (res.ok) {
-        const data = await res.json();
-        const newPixelData = new Uint8Array(data.canvas);
+        const buffer = await res.arrayBuffer();
+        const newPixelData = new Uint8Array(buffer);
         pixelDataRef.current.set(newPixelData);
         renderFullBoard(newPixelData);
       }

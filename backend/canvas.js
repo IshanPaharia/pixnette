@@ -46,9 +46,9 @@ async function setPixel(x, y, color) {
 async function getFullCanvas() {
   const result = await bufferClient.get('canvas:state')
   if (!result) {
-    return new Array(TOTAL).fill(0)
+    return Buffer.alloc(TOTAL, 0)
   }
-  return Array.from(result)
+  return result
 }
 
 module.exports = { loadCanvasFromDB, getPixel, setPixel, getFullCanvas }                                                
