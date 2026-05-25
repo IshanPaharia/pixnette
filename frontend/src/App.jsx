@@ -53,8 +53,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    loadBoard();
-  }, [loadBoard]);
+    if (view === 'canvas') {
+      loadBoard();
+    }
+  }, [view, loadBoard]);
 
   const showFlash = (msg) => {
     setFlash(msg);
