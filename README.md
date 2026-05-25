@@ -20,8 +20,8 @@ A high-performance, real-time collaborative pixel art canvas application built t
 ```mermaid
 graph TD
     Client[React Client Vercel] <-->|WebSockets| Proxy[Nginx Gateway VPS]
-    Proxy <-->|Round-Robin| Node1[Express Server 1 (Container: Port 3001)]
-    Proxy <-->|Round-Robin| Node2[Express Server 2 (Container: Port 3001)]
+    Proxy <-->|Round-Robin| Node1["Express Server 1 (Container: Port 3001)"]
+    Proxy <-->|Round-Robin| Node2["Express Server 2 (Container: Port 3001)"]
     
     Node1 <-->|Cluster Pub/Sub| Sync[Socket.io Redis Adapter]
     Node2 <-->|Cluster Pub/Sub| Sync
