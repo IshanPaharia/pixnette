@@ -1,5 +1,4 @@
 const { pubClient } = require('./redis')
-const { commandOptions } = require('redis')
 const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE) || 512
 const TOTAL = CANVAS_SIZE * CANVAS_SIZE
 
@@ -33,8 +32,8 @@ async function loadCanvasFromDB(pool) {
 
 async function getPixel(x, y) {
   const offset = y * CANVAS_SIZE + x
-  // Fetch the 1-byte range from Redis as a raw buffer
-  const result = await pubClient.getRange(commandOptions({ returnBuffers: true }), 'canvas:state', offset, offset)
+  // Fetch the 1-byte range from Redis as a raw buffer using client withCommandOptions
+  const result = await pubClient.withCommandOptions({ returnBuffers: true }).getRange('canvas:state', offset, offset)
   return result.length > 0 ? result[0] : 0
 }
 
@@ -45,7 +44,7 @@ async function setPixel(x, y, color) {
 }
 
 async function getFullCanvas() {
-  const result = await pubClient.get(commandOptions({ returnBuffers: true }), 'canvas:state')
+  const result = await pubClient.withCommandOptions({ returnBuffers: true }).get('canvas:state')
   if (!result) {
     return new Array(TOTAL).fill(0)
   }
