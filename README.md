@@ -51,10 +51,11 @@ graph TD
 ## 🚀 Quick Start (Local Setup)
 
 ### 1. Configure Environments
+
 Create a `.env` file in the `backend/` directory:
 ```env
-DATABASE_URL=your_postgres_url
-REDIS_URL=your_redis_url
+DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+REDIS_URL=redis://localhost:6379
 PORT=3010
 COOLDOWN_SECONDS=30
 CANVAS_SIZE=64
@@ -62,16 +63,25 @@ FRONTEND_URL=http://localhost:5173
 WRITE_BATCH_INTERVAL_MS=2000
 ```
 
+Create a `.env` file in the `frontend/` directory:
+```env
+VITE_BACKEND_URL=http://localhost:3010
+VITE_CANVAS_SIZE=64
+```
+
 ### 2. Run the Stack
-Run the database migration schema first, then start the server instances:
+
+Run the database schema setup first, then start the local development servers:
 
 ```bash
-# In backend/
+# Setup and run backend
+cd backend
 npm install
 node setup-db.js
 npm run dev
 
-# In frontend/
+# Run frontend (in a separate terminal)
+cd frontend
 npm install
 npm run dev
 ```
