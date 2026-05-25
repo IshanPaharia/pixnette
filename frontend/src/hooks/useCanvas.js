@@ -28,6 +28,22 @@ export function useCanvas() {
   }, []);
 
   const loadBoard = useCallback(async () => {
+    // 1. Instantly render from local cache if available
+    try {
+      const cached = localStorage.getItem('pixnette_canvas_cache');
+      if (cached) {
+        const cachedArr = JSON.parse(cached);
+        if (cachedArr.length === CANVAS_SIZE * CANVAS_SIZE) {
+          const newPixelData = new Uint8Array(cachedArr);
+          pixelDataRef.current.set(newPixelData);
+          renderFullBoard(newPixelData);
+        }
+      }
+    } catch (cacheErr) {
+      console.warn('Failed to load canvas cache:', cacheErr);
+    }
+
+    // 2. Fetch fresh binary data from server in the background
     try {
       const url = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
       const res = await fetch(`${url}/api/canvas`);
@@ -36,6 +52,9 @@ export function useCanvas() {
         const newPixelData = new Uint8Array(buffer);
         pixelDataRef.current.set(newPixelData);
         renderFullBoard(newPixelData);
+
+        // 3. Update the local cache
+        localStorage.setItem('pixnette_canvas_cache', JSON.stringify(Array.from(newPixelData)));
       }
     } catch (e) {
       console.error('Failed to load canvas', e);
@@ -43,14 +62,20 @@ export function useCanvas() {
   }, [renderFullBoard]);
 
   const updatePixel = useCallback((x, y, colorIndex) => {
-    // 1. Update In-Memory Data (No React state update)
+    // 1. Update In-Memory Data
     pixelDataRef.current[y * CANVAS_SIZE + x] = colorIndex;
 
     // 2. Draw directly to canvas
-    if (!boardRef.current) return;
-    const ctx = boardRef.current.getContext('2d', { alpha: false });
-    ctx.fillStyle = PALETTE[colorIndex];
-    ctx.fillRect(x, y, 1, 1);
+    if (boardRef.current) {
+      const ctx = boardRef.current.getContext('2d', { alpha: false });
+      ctx.fillStyle = PALETTE[colorIndex];
+      ctx.fillRect(x, y, 1, 1);
+    }
+
+    // 3. Update the local cache so refreshes capture live changes
+    try {
+      localStorage.setItem('pixnette_canvas_cache', JSON.stringify(Array.from(pixelDataRef.current)));
+    } catch (e) {}
   }, []);
 
   const drawHoverPixel = useCallback((x, y, colorIndex) => {
