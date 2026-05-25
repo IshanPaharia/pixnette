@@ -5,7 +5,10 @@ function TopBarComponent({ liveCount, isConnected, onEnterTimelapse }) {
   return (
     <div className="h-12 flex-none bg-[var(--color-surface)]/70 backdrop-blur-md border-b border-[var(--color-border)] flex items-center justify-between px-3 sm:px-6 fixed top-0 w-full z-20 box-border">
       <div className="flex items-baseline gap-2 sm:gap-3">
-        <h1 className="font-mono text-sm sm:text-lg font-bold tracking-tight text-white">PIXNETTE</h1>
+        <h1 className="font-mono text-sm sm:text-lg font-bold tracking-tight text-white flex items-center gap-1.5 sm:gap-2">
+          <span>🎨</span>
+          <span>PIXNETTE</span>
+        </h1>
         <span className="font-mono text-[10px] sm:text-xs text-gray-500">{CANVAS_SIZE}×{CANVAS_SIZE}</span>
       </div>
       
