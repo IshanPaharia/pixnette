@@ -1,0 +1,26 @@
+config:
+  target: "https://api.pixnette.site"
+  processor: "./socket-processor.js"
+  socketio:
+    transports: ["websocket"]
+    auth:
+      deviceId: "{{ $uuid }}"
+    extraHeaders:
+      User-Agent: "pixnette-load-test/{{ $uuid }}"
+  phases:
+    - name: "Ramp up concurrent WebSocket clients"
+      duration: 60
+      arrivalRate: 1
+
+scenarios:
+  - name: "Hold, place one pixel, hold, disconnect"
+    engine: socketio
+    flow:
+      - think: 10
+      - function: "preparePixel"
+      - emit:
+          channel: "place_pixel"
+          data: "{{ pixel }}"
+        response:
+          channel: "cooldown_sync"
+      - think: 10

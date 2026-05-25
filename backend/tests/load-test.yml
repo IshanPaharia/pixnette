@@ -1,5 +1,12 @@
 config:
   target: "http://localhost:3001" # Replace with your deployment URL if testing a staging/production server
+  processor: "./socket-processor.js"
+  socketio:
+    transports: ["websocket"]
+    auth:
+      deviceId: "{{ $uuid }}"
+    extraHeaders:
+      User-Agent: "pixnette-load-test/{{ $uuid }}"
   phases:
     - duration: 60
       arrivalRate: 20
@@ -15,10 +22,10 @@ scenarios:
     weight: 7  # 70% of simulated users place pixels via socket
     engine: socketio
     flow:
+      - function: "preparePixel"
       - emit:
           channel: "place_pixel"
-          data:
-            x: "{{ $randomNumber(0, 63) }}"
-            y: "{{ $randomNumber(0, 63) }}"
-            color: "{{ $randomNumber(0, 15) }}"
+          data: "{{ pixel }}"
+        response:
+          channel: "cooldown_sync"
       - think: 5

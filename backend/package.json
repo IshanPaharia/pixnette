@@ -5,9 +5,12 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "check": "node --check server.js && node --check writeQueue.js && node --check canvas.js && node --check routes/api.js && node --check db.js && node --check pgConfig.js",
+    "check": "node --check server.js && node --check writeQueue.js && node --check canvas.js && node --check routes/api.js && node --check db.js && node --check pgConfig.js && node --check tests/socket-processor.js && node --check tests/place-once-load.js",
     "setup-db": "node setup-db.js",
-    "test:queue": "node test-write-queue.js"
+    "test:queue": "node test-write-queue.js",
+    "load:socket": "artillery run tests/socket-test.yml",
+    "load:mixed": "artillery run tests/load-test.yml",
+    "load:place-once": "node tests/place-once-load.js"
   },
   "keywords": [],
   "author": "",
