@@ -37,6 +37,11 @@ async function flushQueueToPostgres(pool) {
     tempWrites = await pubClient.hGetAll(tempKey)
   } catch (err) {
     console.error('❌ Failed to fetch temp writes from Redis:', err.message)
+    try {
+      await pubClient.del(tempKey)
+    } catch (delErr) {
+      console.error('❌ Failed to delete temp key after fetch failure:', delErr.message)
+    }
     isFlushing = false
     return
   }

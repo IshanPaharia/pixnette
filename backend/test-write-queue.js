@@ -4,8 +4,8 @@ const { queuePixelWrite, flushQueueToPostgres } = require('./writeQueue')
 
 // Mock broken pool to simulate a DB connection error
 const mockBrokenPool = {
-  query: async () => {
-    throw new Error('Simulated Database Failure!')
+  connect: async () => {
+    throw new Error('Simulated Database Connection Failure!')
   }
 }
 
@@ -49,11 +49,18 @@ async function runTest() {
 
   // 2. Start flush, but we will hijack the query function to simulate User B placing a pixel DURING the DB write
   const mockHijackedPool = {
-    query: async () => {
-      console.log('   [DB Flush running...] User B places color 4 (Blue) at (10,10) now!')
-      // Simulate User B writing to active queue while flush is in progress
-      await queuePixelWrite(10, 10, 4, 'user_b')
-      throw new Error('Simulated Database Failure!')
+    connect: async () => {
+      return {
+        query: async (queryText) => {
+          if (queryText === 'BEGIN') {
+            console.log('   [DB Flush running...] User B places color 4 (Blue) at (10,10) now!')
+            // Simulate User B writing to active queue while flush is in progress
+            await queuePixelWrite(10, 10, 4, 'user_b')
+          }
+          throw new Error('Simulated Database Query Failure!')
+        },
+        release: () => {}
+      }
     }
   }
 

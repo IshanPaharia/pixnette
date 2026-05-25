@@ -33,7 +33,16 @@ router.get('/health', (req, res) => {
 // Returns the chronological stream of all pixel placements
 router.get('/canvas/history', async (req, res) => {
   try {
-    const result = await pool.query('SELECT x, y, color FROM pixel_history ORDER BY id ASC')
+    // Fetch the 50k latest pixel events, but returned in chronological ascending order
+    const queryStr = `
+      SELECT x, y, color FROM (
+        SELECT id, x, y, color 
+        FROM pixel_history 
+        ORDER BY id DESC 
+        LIMIT 50000
+      ) sub ORDER BY id ASC
+    `
+    const result = await pool.query(queryStr)
     res.json({ history: result.rows })
   } catch (error) {
     console.error('Error fetching canvas history:', error)

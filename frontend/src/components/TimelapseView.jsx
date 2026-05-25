@@ -7,7 +7,7 @@ export function TimelapseView({ onExit }) {
   const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(-1);
-  const [speed, setSpeed] = useState(50); // number of pixels painted per animation frame
+  const [speed, setSpeed] = useState(50); // speed multiplier (1x = 2 px/s, scaled linearly)
   
   const canvasRef = useRef(null);
   const lastDrawnIndexRef = useRef(-1);
@@ -80,22 +80,38 @@ export function TimelapseView({ onExit }) {
     }
   }, [history]);
 
-  // Playback loop using requestAnimationFrame
+  // Playback loop using delta time for precise pixel-per-second scheduling
   useEffect(() => {
     if (!isPlaying) {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
       return;
     }
 
-    const tick = () => {
-      setCurrentIndex((prev) => {
-        if (prev >= history.length - 1) {
-          setIsPlaying(false);
-          return prev;
-        }
-        // Jump forward by the speed step (e.g. 50 pixels per frame)
-        return Math.min(history.length - 1, prev + speed);
-      });
+    let lastTime = performance.now();
+    let accumulator = 0;
+
+    const tick = (now) => {
+      const deltaMs = now - lastTime;
+      lastTime = now;
+
+      // 1x speed corresponds to 2 pixels per second. Scale other multipliers linearly.
+      const pixelsPerSecond = speed * 2;
+      const pixelsToAdvance = (pixelsPerSecond * deltaMs) / 1000;
+      accumulator += pixelsToAdvance;
+
+      if (accumulator >= 1) {
+        const steps = Math.floor(accumulator);
+        accumulator -= steps;
+
+        setCurrentIndex((prev) => {
+          if (prev >= history.length - 1) {
+            setIsPlaying(false);
+            return prev;
+          }
+          return Math.min(history.length - 1, prev + steps);
+        });
+      }
+
       animationRef.current = requestAnimationFrame(tick);
     };
 
@@ -126,9 +142,27 @@ export function TimelapseView({ onExit }) {
   const handleExport = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // Create an offscreen canvas for high-quality upscaled export
+    const exportSize = 1024; // Upscale to 1024x1024 for crispness
+    const offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = exportSize;
+    offscreenCanvas.height = exportSize;
+
+    const ctx = offscreenCanvas.getContext('2d');
+    if (ctx) {
+      // Disable image smoothing to maintain sharp, pixelated, nearest-neighbor scaling
+      ctx.imageSmoothingEnabled = false;
+      ctx.mozImageSmoothingEnabled = false;
+      ctx.webkitImageSmoothingEnabled = false;
+      ctx.msImageSmoothingEnabled = false;
+
+      ctx.drawImage(canvas, 0, 0, exportSize, exportSize);
+    }
+
     const link = document.createElement('a');
     link.download = `pixnette-timelapse-pixel-${currentIndex + 1}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.href = offscreenCanvas.toDataURL('image/png');
     link.click();
   };
 
@@ -161,7 +195,7 @@ export function TimelapseView({ onExit }) {
             <p className="text-gray-500 text-xs font-mono">Go place some pixels on the canvas first!</p>
           </div>
         ) : (
-          <div className="relative border border-[var(--color-border)] bg-white shadow-2xl max-w-full max-h-[70vh] aspect-square rounded overflow-hidden">
+          <div className="relative border border-[var(--color-border)] bg-white shadow-2xl w-[512px] h-[512px] max-w-[90vw] max-h-[70vh] aspect-square rounded overflow-hidden">
             <canvas
               ref={canvasRef}
               width={CANVAS_SIZE}

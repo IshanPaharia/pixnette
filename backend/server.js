@@ -35,8 +35,9 @@ app.use('/api', require('./routes/api'))
 function getFingerprint(socket) {
   // Use client-generated UUID if provided
   const deviceId = socket.handshake.auth?.deviceId;
-  if (deviceId && typeof deviceId === 'string' && deviceId.length >= 8) {
-    return deviceId.slice(0, 36); // Sanitized UUID length limit
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (deviceId && typeof deviceId === 'string' && uuidRegex.test(deviceId)) {
+    return deviceId;
   }
 
   // Fallback to IP + User-Agent hash
@@ -85,7 +86,13 @@ io.on('connection', async (socket) => { // Added 'async'
   }
 
   // Tell this new client how long their cooldown has left (0 if none)
-  socket.emit('cooldown_sync', { remaining: await getCooldownRemaining(fingerprint) })
+  try {
+    const remaining = await getCooldownRemaining(fingerprint)
+    socket.emit('cooldown_sync', { remaining })
+  } catch (err) {
+    console.error(`Failed to get cooldown for fingerprint ${fingerprint}:`, err.message)
+    socket.emit('cooldown_sync', { remaining: 0 })
+  }
 
   // Handle pixel placement
   socket.on('place_pixel', async (data) => { // Added 'async'
@@ -178,11 +185,12 @@ async function startServer() {
 startServer()
 
 // Flush pending pixel writes to DB every WRITE_BATCH_INTERVAL_MS (default 2s)
-setInterval(() => flushQueueToPostgres(pool), parseInt(process.env.WRITE_BATCH_INTERVAL_MS) || 2000)
+const flushInterval = setInterval(() => flushQueueToPostgres(pool), parseInt(process.env.WRITE_BATCH_INTERVAL_MS) || 2000)
 
 // Graceful shutdown handler
 const handleShutdown = async (signal) => {
   console.log(`\n${signal} received — flushing writes and closing pool...`)
+  clearInterval(flushInterval)
   await flushQueueToPostgres(pool)
   try {
     await pool.end()
