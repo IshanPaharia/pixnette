@@ -18,7 +18,7 @@ services:
     container_name: pixnette_backend_1
     restart: always
     env_file:
-      - backend.env
+      - .env
     environment:
       - PORT=3001
       - REDIS_URL=redis://redis:6379
@@ -37,7 +37,7 @@ services:
     container_name: pixnette_backend_2
     restart: always
     env_file:
-      - backend.env
+      - .env
     environment:
       - PORT=3001
       - REDIS_URL=redis://redis:6379

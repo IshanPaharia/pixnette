@@ -102,7 +102,7 @@ To encrypt traffic between Cloudflare's edge servers and your VPS Nginx gateway:
 *(Note: The `ssl/` folder is git-ignored to prevent sensitive credentials from leaking.)*
 
 ### 2. Configure Production Environment Variables
-On the VPS, create a `backend.env` file in the root directory:
+On the VPS, create a `.env` file in the root directory:
 ```env
 DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
 COOLDOWN_SECONDS=30
