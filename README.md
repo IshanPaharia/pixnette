@@ -1,0 +1,77 @@
+# 🎨 Pixnette
+
+A high-performance, real-time collaborative pixel art canvas application built to scale horizontally across clustered server nodes.
+
+🌐 **Live Demo:** [www.pixnette.site](https://www.pixnette.site)
+
+---
+
+## ⚡ Features
+- **Real-Time Collaboration:** Instantly sync pixel placements across all users using Socket.io cluster event pub/sub.
+- **Durable Write-Back Queue:** Batches coordinate database writes to Postgres, protecting DB connections and avoiding Disk I/O bottlenecks.
+- **Distributed Cache Layer:** Stores binary canvas representation directly in Redis, serving read streams at sub-millisecond latencies.
+- **Frictionless Viewport Navigation:** Smooth zoom-at-point tracking, mobile pinch gestures, and pan navigation.
+- **Timelapse Playback:** Scrub, control speed, and play back chronological pixel histories using optimized differences rendering.
+
+---
+
+## 📐 System Architecture
+
+```mermaid
+graph TD
+    Client[React Client Vercel] <-->|WebSockets| Proxy[Nginx Gateway VPS]
+    Proxy <-->|Round-Robin| Node1[Express Server 1: Port 3001]
+    Proxy <-->|Round-Robin| Node2[Express Server 2: Port 3002]
+    
+    Node1 <-->|Cluster Pub/Sub| Sync[Socket.io Redis Adapter]
+    Node2 <-->|Cluster Pub/Sub| Sync
+    Sync <--> Cache[(Upstash Redis Cache)]
+    
+    Node1 -->|In-Memory State| Cache
+    Node2 -->|In-Memory State| Cache
+    
+    Node1 -.->|Batched Flushes| DB[(Neon Postgres DB)]
+    Node2 -.->|Batched Flushes| DB
+```
+
+---
+
+## 🛠️ Tech Stack
+
+| Tier | Technology | Description |
+| :--- | :--- | :--- |
+| **Frontend** | React + Vite + TailwindCSS | Double-buffered HTML5 canvases & touch-gesture controllers. |
+| **Backend** | Express + Socket.io | Clustered Node.js services managing validations & rate limits. |
+| **Caching** | Upstash Redis | Binary canvas state storage & active cooldown TTL tracking. |
+| **Database** | Neon Postgres | Transactional records store for canvas history & timelapse replays. |
+| **Routing** | Cloudflare + Nginx | SSL termination, reverse proxying, and WebSocket load balancing. |
+
+---
+
+## 🚀 Quick Start (Local Setup)
+
+### 1. Configure Environments
+Create a `.env` file in the `backend/` directory:
+```env
+DATABASE_URL=your_postgres_url
+REDIS_URL=your_redis_url
+PORT=3010
+COOLDOWN_SECONDS=30
+CANVAS_SIZE=64
+FRONTEND_URL=http://localhost:5173
+WRITE_BATCH_INTERVAL_MS=2000
+```
+
+### 2. Run the Stack
+Run the database migration schema first, then start the server instances:
+
+```bash
+# In backend/
+npm install
+node setup-db.js
+npm run dev
+
+# In frontend/
+npm install
+npm run dev
+```
