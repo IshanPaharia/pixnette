@@ -1,5 +1,5 @@
 const { pubClient, bufferClient } = require('./redis')
-const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE) || 512
+const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE, 10) || 64
 const TOTAL = CANVAS_SIZE * CANVAS_SIZE
 
 async function loadCanvasFromDB(pool) {
@@ -51,4 +51,4 @@ async function getFullCanvas() {
   return result
 }
 
-module.exports = { loadCanvasFromDB, getPixel, setPixel, getFullCanvas }                                                
+module.exports = { loadCanvasFromDB, getPixel, setPixel, getFullCanvas }

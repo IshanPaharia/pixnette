@@ -3,7 +3,7 @@ const router = express.Router()
 const { getFullCanvas } = require('../canvas.js')
 const pool = require('../db.js')
 
-const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE) || 512
+const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE, 10) || 64
 const TOTAL = CANVAS_SIZE * CANVAS_SIZE
 
 // GET /api/canvas
@@ -36,11 +36,11 @@ router.get('/canvas/history', async (req, res) => {
     // Fetch the 50k latest pixel events, but returned in chronological ascending order
     const queryStr = `
       SELECT x, y, color FROM (
-        SELECT id, x, y, color 
+        SELECT id, x, y, color, placed_at
         FROM pixel_history 
-        ORDER BY id DESC 
+        ORDER BY placed_at DESC, id DESC
         LIMIT 50000
-      ) sub ORDER BY id ASC
+      ) sub ORDER BY placed_at ASC, id ASC
     `
     const result = await pool.query(queryStr)
     res.json({ history: result.rows })

@@ -50,6 +50,10 @@ export function useCanvas() {
       if (res.ok) {
         const buffer = await res.arrayBuffer();
         const newPixelData = new Uint8Array(buffer);
+        if (newPixelData.length !== CANVAS_SIZE * CANVAS_SIZE) {
+          console.error(`Canvas size mismatch: expected ${CANVAS_SIZE * CANVAS_SIZE} bytes, received ${newPixelData.length}`);
+          return;
+        }
         pixelDataRef.current.set(newPixelData);
         renderFullBoard(newPixelData);
 
@@ -75,7 +79,9 @@ export function useCanvas() {
     // 3. Update the local cache so refreshes capture live changes
     try {
       localStorage.setItem('pixnette_canvas_cache', JSON.stringify(Array.from(pixelDataRef.current)));
-    } catch (e) {}
+    } catch (storageErr) {
+      console.warn('Failed to update canvas cache:', storageErr);
+    }
   }, []);
 
   const drawHoverPixel = useCallback((x, y, colorIndex) => {
@@ -111,7 +117,6 @@ export function useCanvas() {
     loadBoard, 
     updatePixel, 
     drawHoverPixel, 
-    getPixelColor,
-    pixelData: pixelDataRef.current 
+    getPixelColor
   };
 }

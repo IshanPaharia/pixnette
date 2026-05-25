@@ -12,7 +12,7 @@ import { TimelapseView } from './components/TimelapseView';
 function App() {
   const { socketRef, isConnected, liveCount } = useSocket();
   const [view, setView] = useState('canvas');
-  const { cooldownRemaining, triggerCooldown, syncCooldown } = useCooldown();
+  const { cooldownRemaining, triggerCooldown, syncCooldown, cooldownSeconds } = useCooldown();
   const { boardRef, overlayRef, loadBoard, updatePixel, drawHoverPixel, getPixelColor } = useCanvas();
 
   const [selectedColor, setSelectedColor] = useState(0);
@@ -58,10 +58,23 @@ function App() {
     }
   }, [view, loadBoard]);
 
-  const showFlash = (msg) => {
+  const flashTimerRef = useRef(null);
+
+  const showFlash = useCallback((msg) => {
+    if (flashTimerRef.current) {
+      clearTimeout(flashTimerRef.current);
+    }
     setFlash(msg);
-    setTimeout(() => setFlash(null), 2500);
-  };
+    flashTimerRef.current = setTimeout(() => setFlash(null), 2500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current) {
+        clearTimeout(flashTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const socket = socketRef.current;
@@ -105,7 +118,7 @@ function App() {
       socket.off('connect', onConnect);
       socket.off('cooldown_sync', onCooldownSync);
     };
-  }, [socketRef, loadBoard, updatePixel, syncCooldown]);
+  }, [socketRef, loadBoard, updatePixel, syncCooldown, showFlash]);
 
   const handleHover = useCallback((h) => {
     setHoverCursor(h);
@@ -122,6 +135,18 @@ function App() {
     }
   }, [selectedColor, hoverCursor, drawHoverPixel]);
 
+  const submitPixel = useCallback((x, y) => {
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      showFlash('Disconnected');
+      return;
+    }
+
+    socket.emit('place_pixel', { x, y, color: selectedColor });
+    updatePixel(x, y, selectedColor);
+    triggerCooldown();
+  }, [socketRef, selectedColor, showFlash, updatePixel, triggerCooldown]);
+
   const handlePlace = useCallback(() => {
     if (cooldownRemaining > 0) {
       showFlash(`Cooldown: ${cooldownRemaining}s remaining`);
@@ -134,28 +159,16 @@ function App() {
     }
 
     const { x, y } = hoverCursor;
-    const socket = socketRef.current;
-    if (socket) {
-      socket.emit('place_pixel', { x, y, color: selectedColor });
-    }
-    
-    updatePixel(x, y, selectedColor);
-    triggerCooldown();
-  }, [cooldownRemaining, hoverCursor, socketRef, selectedColor, updatePixel, triggerCooldown]);
+    submitPixel(x, y);
+  }, [cooldownRemaining, hoverCursor, showFlash, submitPixel]);
 
   const handleClickPixel = useCallback((x, y) => {
     if (cooldownRemaining > 0) {
       showFlash(`Cooldown: ${cooldownRemaining}s remaining`);
       return;
     }
-    const socket = socketRef.current;
-    if (socket) {
-      socket.emit('place_pixel', { x, y, color: selectedColor });
-    }
-    
-    updatePixel(x, y, selectedColor);
-    triggerCooldown();
-  }, [cooldownRemaining, socketRef, selectedColor, updatePixel, triggerCooldown]);
+    submitPixel(x, y);
+  }, [cooldownRemaining, showFlash, submitPixel]);
 
   if (view === 'timelapse') {
     return <TimelapseView onExit={() => setView('canvas')} />;
@@ -181,6 +194,7 @@ function App() {
         onSelectColor={setSelectedColor}
         onPlace={handlePlace}
         cooldownRemaining={cooldownRemaining}
+        cooldownSeconds={cooldownSeconds}
       />
 
       <div 

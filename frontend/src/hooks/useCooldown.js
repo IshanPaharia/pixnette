@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 
+const COOLDOWN_SECONDS = parseInt(import.meta.env.VITE_COOLDOWN_SECONDS, 10) || 30;
+
 export function useCooldown() {
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
@@ -24,9 +26,9 @@ export function useCooldown() {
   }, []);
 
   const triggerCooldown = () => {
-    const expiresMs = Date.now() + 30000;
+    const expiresMs = Date.now() + (COOLDOWN_SECONDS * 1000);
     localStorage.setItem('pb_cooldown_expires', expiresMs.toString());
-    setCooldownRemaining(30);
+    setCooldownRemaining(COOLDOWN_SECONDS);
   };
 
   const syncCooldown = (seconds) => {
@@ -40,5 +42,5 @@ export function useCooldown() {
     }
   };
 
-  return { cooldownRemaining, triggerCooldown, syncCooldown };
+  return { cooldownRemaining, triggerCooldown, syncCooldown, cooldownSeconds: COOLDOWN_SECONDS };
 }

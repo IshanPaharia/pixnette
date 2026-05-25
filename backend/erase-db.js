@@ -1,11 +1,9 @@
 require('dotenv').config({ path: __dirname + '/.env' })
 const { Pool } = require('pg')
 const { pubClient } = require('./redis')
+const { createPoolConfig } = require('./pgConfig')
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-})
+const pool = new Pool(createPoolConfig())
 
 async function erase() {
   console.log('Connecting to database and Redis...')

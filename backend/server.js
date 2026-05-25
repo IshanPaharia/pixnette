@@ -4,15 +4,15 @@ const http = require('http')
 const crypto = require('crypto')
 const { Server } = require('socket.io')
 const { loadCanvasFromDB, setPixel, getPixel } = require('./canvas.js')
-const { queuePixelWrite, flushQueueToPostgres } = require('./writeQueue.js')
+const { queuePixelWrite, flushQueueToPostgres, recoverInterruptedFlushes } = require('./writeQueue.js')
 const { isOnCooldown, setCooldown, getCooldownRemaining } = require('./cooldown.js')
 const cors = require('cors')
 const pool = require('./db')
 const { createAdapter } = require('@socket.io/redis-adapter')
 const { pubClient, subClient, connectRedis } = require('./redis.js')
 
-const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE) || 512
-const COOLDOWN_SECONDS = parseInt(process.env.COOLDOWN_SECONDS) || 30
+const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE, 10) || 64
+const COOLDOWN_SECONDS = parseInt(process.env.COOLDOWN_SECONDS, 10) || 30
 
 const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
 
@@ -164,6 +164,7 @@ async function startServer() {
     await connectRedis();
     io.adapter(createAdapter(pubClient, subClient));
     console.log('✅ Socket.io Redis adapter attached');
+    await recoverInterruptedFlushes();
   } catch (err) {
     console.error('❌ Failed to initialize Redis on startup:', err.message);
     process.exit(1); // Exit because the scaling tier requires Redis to run

@@ -54,19 +54,24 @@ graph TD
 
 Create a `.env` file in the `backend/` directory:
 ```env
-DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require&channel_binding=require
 REDIS_URL=redis://localhost:6379
 PORT=3010
 COOLDOWN_SECONDS=30
 CANVAS_SIZE=64
 FRONTEND_URL=http://localhost:5173
 WRITE_BATCH_INTERVAL_MS=2000
+WRITE_FLUSH_STALE_MS=60000
+DATABASE_SSL=true
+DATABASE_SSL_REJECT_UNAUTHORIZED=true
+DATABASE_ENABLE_CHANNEL_BINDING=true
 ```
 
 Create a `.env` file in the `frontend/` directory:
 ```env
 VITE_BACKEND_URL=http://localhost:3010
 VITE_CANVAS_SIZE=64
+VITE_COOLDOWN_SECONDS=30
 ```
 
 ### 2. Run the Stack
@@ -104,13 +109,26 @@ To encrypt traffic between Cloudflare's edge servers and your VPS Nginx gateway:
 ### 2. Configure Production Environment Variables
 On the VPS, create a `.env` file in the root directory:
 ```env
-DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require&channel_binding=require
 COOLDOWN_SECONDS=30
 CANVAS_SIZE=64
 FRONTEND_URL=https://www.pixnette.site
 WRITE_BATCH_INTERVAL_MS=2000
+WRITE_FLUSH_STALE_MS=60000
+DATABASE_SSL=true
+DATABASE_SSL_REJECT_UNAUTHORIZED=true
+DATABASE_ENABLE_CHANNEL_BINDING=true
+# Optional if your provider gives you a custom CA bundle:
+# DATABASE_SSL_CA_FILE=/absolute/path/to/database-ca.pem
 # IMPORTANT: Override the default Redis password with a strong custom password!
 REDIS_PASSWORD=a_very_strong_random_password_here
+```
+
+In Vercel, configure the matching frontend variables:
+```env
+VITE_BACKEND_URL=https://api.pixnette.site
+VITE_CANVAS_SIZE=64
+VITE_COOLDOWN_SECONDS=30
 ```
 
 ### 3. Docker Network Isolation & Port Exposure
@@ -125,4 +143,3 @@ Verify your environment variables are configured and the SSL certificates are in
 # Build and run containers in detached mode
 sudo docker compose up --build -d
 ```
-

@@ -2,6 +2,8 @@ require('dotenv').config()
 const { pubClient, connectRedis } = require('./redis')
 const { queuePixelWrite, flushQueueToPostgres } = require('./writeQueue')
 
+const EVENTS_KEY = 'pixel:write:events'
+
 // Mock broken pool to simulate a DB connection error
 const mockBrokenPool = {
   connect: async () => {
@@ -14,10 +16,14 @@ async function runTest() {
   await connectRedis()
 
   // Clean keys
-  await pubClient.del('pixel:write:queue')
+  await pubClient.del(EVENTS_KEY)
   
   // Clean any old flush keys
-  const keys = await pubClient.keys('pixel:write:flush:*')
+  let keys = await pubClient.keys('pixel:write:flush:*')
+  if (keys.length > 0) {
+    await pubClient.del(keys)
+  }
+  keys = await pubClient.keys('pixel:write:retry:*')
   if (keys.length > 0) {
     await pubClient.del(keys)
   }
@@ -32,16 +38,17 @@ async function runTest() {
   await flushQueueToPostgres(mockBrokenPool)
 
   // Verify that color 1 was restored to the queue
-  let currentQueue = await pubClient.hGetAll('pixel:write:queue')
+  let currentQueue = await pubClient.lRange(EVENTS_KEY, 0, -1)
   console.log('3. Queue contents after recovery:', currentQueue)
-  if (currentQueue['5,5'] && currentQueue['5,5'].startsWith('1:')) {
+  const recoveredWrite = currentQueue.map(JSON.parse).find(item => item.x === 5 && item.y === 5)
+  if (recoveredWrite && recoveredWrite.color === 1) {
     console.log('✅ PASS: Pixel was successfully recovered back to the queue!')
   } else {
     console.log('❌ FAIL: Pixel was not recovered.')
   }
 
   console.log('\n--- Test Part 2: Concurrency Overwrite Prevention ---')
-  await pubClient.del('pixel:write:queue')
+  await pubClient.del(EVENTS_KEY)
 
   // 1. Queue a write at (10,10) as GREEN (color 3)
   await queuePixelWrite(10, 10, 3, 'user_a')
@@ -67,12 +74,13 @@ async function runTest() {
   await flushQueueToPostgres(mockHijackedPool)
 
   // 3. Verify queue state
-  currentQueue = await pubClient.hGetAll('pixel:write:queue')
+  currentQueue = await pubClient.lRange(EVENTS_KEY, 0, -1)
   console.log('2. Queue contents after recovery:', currentQueue)
-  if (currentQueue['10,10'] && currentQueue['10,10'].startsWith('4:')) {
-    console.log('✅ PASS: User B\'s newer color (4) was preserved and User A\'s failed color (3) was safely discarded!')
+  const orderedWrites = currentQueue.map(JSON.parse).filter(item => item.x === 10 && item.y === 10)
+  if (orderedWrites.length === 2 && orderedWrites[0].color === 3 && orderedWrites[1].color === 4) {
+    console.log('✅ PASS: Chronological writes were preserved and User B\'s newer color remains last!')
   } else {
-    console.log('❌ FAIL: User A\'s older color overwrote User B\'s newer color!')
+    console.log('❌ FAIL: Recovered writes are not in the expected chronological order!')
   }
 
   process.exit(0)

@@ -1,7 +1,7 @@
 services:
   # 1. Local Redis Container
   redis:
-    image: redis:alpine
+    image: redis:7.4-alpine
     container_name: pixnette_redis
     restart: always
     command: redis-server --requirepass "${REDIS_PASSWORD:-pixnette_secure_pass}"
@@ -50,7 +50,7 @@ services:
 
   # 4. Nginx Load Balancer Container
   nginx:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     container_name: pixnette_nginx
     restart: always
     ports:

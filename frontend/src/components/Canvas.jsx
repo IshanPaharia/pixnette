@@ -52,7 +52,7 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
   // Initial centering
   useEffect(() => {
     setTransform(getCenteredTransform());
-  }, [getCenteredTransform]);
+  }, [getCenteredTransform, setTransform]);
 
   const zoomAtPoint = useCallback((multiplier, clientX, clientY) => {
     if (!wrapRef.current) return;
@@ -278,7 +278,7 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [zoomAtPoint]);
+  }, [zoomAtPoint, setTransform]);
 
   const resetZoom = () => {
     setTransform(getCenteredTransform());

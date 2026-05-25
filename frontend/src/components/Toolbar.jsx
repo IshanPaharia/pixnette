@@ -1,7 +1,7 @@
 import { PALETTE } from '../utils/palette';
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
 
-function ToolbarComponent({ selectedColor, onSelectColor, onPlace, cooldownRemaining }) {
+function ToolbarComponent({ selectedColor, onSelectColor, onPlace, cooldownRemaining, cooldownSeconds }) {
   const isReady = cooldownRemaining === 0;
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -93,7 +93,7 @@ function ToolbarComponent({ selectedColor, onSelectColor, onPlace, cooldownRemai
         <span className="font-mono text-[11px] sm:text-sm text-gray-300 w-6 sm:w-8 text-right block">
           {isReady ? 'RDY' : `${cooldownRemaining}s`}
         </span>
-        <CooldownRing remaining={cooldownRemaining} total={30} />
+        <CooldownRing remaining={cooldownRemaining} total={cooldownSeconds} />
       </div>
     </div>
   );

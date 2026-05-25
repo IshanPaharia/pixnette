@@ -1,4 +1,4 @@
-export const CANVAS_SIZE = parseInt(import.meta.env.VITE_CANVAS_SIZE) || 512;
+export const CANVAS_SIZE = parseInt(import.meta.env.VITE_CANVAS_SIZE, 10) || 64;
 
 export const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
 

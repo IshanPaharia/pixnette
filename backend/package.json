@@ -4,7 +4,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "check": "node --check server.js && node --check writeQueue.js && node --check canvas.js && node --check routes/api.js && node --check db.js && node --check pgConfig.js",
+    "setup-db": "node setup-db.js",
+    "test:queue": "node test-write-queue.js"
   },
   "keywords": [],
   "author": "",
