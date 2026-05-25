@@ -164,7 +164,6 @@ function App() {
       <TopBar 
         liveCount={liveCount} 
         isConnected={isConnected} 
-        cursor={hoverCursor || {x: -1, y: -1}} 
         onEnterTimelapse={() => setView('timelapse')}
       />
       

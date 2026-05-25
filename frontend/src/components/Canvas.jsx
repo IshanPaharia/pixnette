@@ -127,8 +127,24 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
 
   const handlePointerMove = (e) => {
     const pointers = pointersRef.current;
-    const isMouse = e.pointerType === 'mouse';
-    if (!isMouse && !pointers.has(e.pointerId)) return;
+    
+    // We only track active dragging/touching pointers in the pointers map.
+    // If it's not in the map, and it's a mouse, then it's a hover!
+    if (!pointers.has(e.pointerId)) {
+      if (e.pointerType === 'mouse' && !isPanning) {
+        const wrap = wrapRef.current;
+        if (!wrap || !onHover) return;
+        const rect = wrap.getBoundingClientRect();
+        const { x, y } = canvasToPixel(e.clientX, e.clientY, rect, transformRef.current.x, transformRef.current.y, transformRef.current.scale);
+        
+        if (inBounds(x, y)) {
+          onHover({ x, y, clientX: e.clientX, clientY: e.clientY });
+        } else {
+          onHover(null);
+        }
+      }
+      return;
+    }
     
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -187,20 +203,6 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
       }));
       onHover(null);
       return;
-    }
-    
-    // Mouse Hover (only when mouse is not dragging)
-    if (e.pointerType === 'mouse' && pointers.size === 0) {
-        const wrap = wrapRef.current;
-        if (!wrap || !onHover) return;
-        const rect = wrap.getBoundingClientRect();
-        const { x, y } = canvasToPixel(e.clientX, e.clientY, rect, transformRef.current.x, transformRef.current.y, transformRef.current.scale);
-        
-        if (inBounds(x, y)) {
-          onHover({ x, y, clientX: e.clientX, clientY: e.clientY });
-        } else {
-          onHover(null);
-        }
     }
   };
 
@@ -308,11 +310,17 @@ function CanvasComponent({ boardRef, overlayRef, onHover, onClickPixel }) {
           backgroundColor: '#ffffff',
           willChange: 'transform'
       }}>
-        <canvas ref={boardRef} width={CANVAS_SIZE} height={CANVAS_SIZE} className="absolute inset-0 rendering-pixelated" />
-        <canvas ref={overlayRef} width={CANVAS_SIZE} height={CANVAS_SIZE} className="absolute inset-0 rendering-pixelated" style={{ pointerEvents: 'none' }} />
+        <canvas ref={boardRef} width={CANVAS_SIZE} height={CANVAS_SIZE} className="w-full h-full absolute inset-0 rendering-pixelated" style={{ backgroundColor: '#ffffff' }} />
+        <canvas ref={overlayRef} width={CANVAS_SIZE} height={CANVAS_SIZE} className="w-full h-full absolute inset-0 rendering-pixelated" style={{ pointerEvents: 'none' }} />
       </div>
 
-      <div className="absolute bottom-24 right-6 flex flex-col bg-[var(--color-surface)]/80 backdrop-blur-md border border-[var(--color-border)] rounded shadow-xl overflow-hidden pointer-events-auto z-30 transition-all">
+      <div 
+        className="absolute bottom-24 right-6 flex flex-col bg-[var(--color-surface)]/80 backdrop-blur-md border border-[var(--color-border)] rounded shadow-xl overflow-hidden pointer-events-auto z-30 transition-all"
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
         <button onClick={() => zoomAtPoint(1.5, window.innerWidth/2, window.innerHeight/2)} className="w-10 h-10 text-white hover:bg-white/10 flex items-center justify-center font-mono text-lg transition-colors">＋</button>
         <div className="w-full h-px bg-[var(--color-border)]" />
         <button onClick={() => zoomAtPoint(1/1.5, window.innerWidth/2, window.innerHeight/2)} className="w-10 h-10 text-white hover:bg-white/10 flex items-center justify-center font-mono text-lg transition-colors">−</button>

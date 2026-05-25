@@ -63,7 +63,38 @@ async function flushQueueToPostgres(pool) {
   }
 
   // 5. Bulk write chunked records to Postgres
-  const client = await pool.connect()
+  let client
+  try {
+    client = await pool.connect()
+  } catch (connectErr) {
+    console.error('❌ Database connection failed during flush:', connectErr.message)
+    try {
+      // Merge-back rollback since we couldn't connect
+      const activeQueue = await pubClient.hGetAll('pixel:write:queue')
+      for (const item of batch) {
+        const field = `${item.x},${item.y}`
+        const activeValue = activeQueue[field]
+        let shouldRequeue = true
+        if (activeValue) {
+          const [, , activeTimestampStr] = activeValue.split(':')
+          const activeTimestamp = parseInt(activeTimestampStr, 10)
+          if (activeTimestamp > item.timestamp) {
+            shouldRequeue = false
+          }
+        }
+        if (shouldRequeue) {
+          await pubClient.hSet('pixel:write:queue', field, item.rawValue)
+        }
+      }
+      await pubClient.del(tempKey)
+      console.log('✅ Safely merged writes back to Redis queue after database connection failure.')
+    } catch (recoveryErr) {
+      console.error('❌ CRITICAL: Failed to run merge-back recovery on connection failure:', recoveryErr.message)
+    }
+    isFlushing = false
+    return
+  }
+
   try {
     await client.query('BEGIN')
     const CHUNK_SIZE = 4000
@@ -98,7 +129,11 @@ async function flushQueueToPostgres(pool) {
     // Success: Delete the temp key
     await pubClient.del(tempKey)
   } catch (dbErr) {
-    await client.query('ROLLBACK')
+    try {
+      await client.query('ROLLBACK')
+    } catch (rbErr) {
+      console.error('❌ Rollback failed:', rbErr.message)
+    }
     console.error('❌ Database bulk-write failed. Rollback executed. Starting merge-back recovery:', dbErr.message)
     try {
       // 6. Safe Merge-back rollback

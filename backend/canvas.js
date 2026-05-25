@@ -1,13 +1,19 @@
-const { pubClient, commandOptions } = require('./redis')
+const { pubClient } = require('./redis')
+const { commandOptions } = require('redis')
 const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE) || 512
 const TOTAL = CANVAS_SIZE * CANVAS_SIZE
 
 async function loadCanvasFromDB(pool) {
-  // Check if the canvas state is already cached in Redis
+  // Check if the canvas state is already cached in Redis and has the correct size
   const exists = await pubClient.exists('canvas:state')
   if (exists) {
-    console.log('✅ Canvas state already cached in Redis')
-    return
+    const len = await pubClient.strLen('canvas:state')
+    if (len === TOTAL) {
+      console.log('✅ Canvas state already cached in Redis')
+      return
+    }
+    console.log(`⚠️ Canvas state cache size mismatch: expected ${TOTAL}, got ${len}. Reinitializing...`)
+    await pubClient.del('canvas:state')
   }
   console.log('⏳ Canvas cache not found in Redis. Initializing from Postgres...')
   
@@ -27,11 +33,9 @@ async function loadCanvasFromDB(pool) {
 
 async function getPixel(x, y) {
   const offset = y * CANVAS_SIZE + x
-  // Fetch the 1-byte range from Redis as a string
-  const result = await pubClient.getRange('canvas:state', offset, offset)
-  // Convert it back to a binary Buffer and read the first byte
-  const buffer = Buffer.from(result, 'binary')
-  return buffer.length > 0 ? buffer[0] : 0
+  // Fetch the 1-byte range from Redis as a raw buffer
+  const result = await pubClient.getRange(commandOptions({ returnBuffers: true }), 'canvas:state', offset, offset)
+  return result.length > 0 ? result[0] : 0
 }
 
 async function setPixel(x, y, color) {
@@ -41,13 +45,11 @@ async function setPixel(x, y, color) {
 }
 
 async function getFullCanvas() {
-  const result = await pubClient.get('canvas:state')
+  const result = await pubClient.get(commandOptions({ returnBuffers: true }), 'canvas:state')
   if (!result) {
     return new Array(TOTAL).fill(0)
   }
-  // Convert the retrieved string to a binary Buffer and map it to a plain Array
-  const buffer = Buffer.from(result, 'binary')
-  return Array.from(buffer)
+  return Array.from(result)
 }
 
 module.exports = { loadCanvasFromDB, getPixel, setPixel, getFullCanvas }                                                
