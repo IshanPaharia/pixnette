@@ -6,6 +6,7 @@ Thumbs.db
 *.swp
 *.swo
 ssl/
+interview_study/
 
 # Project subdirectories
 backend/node_modules/
