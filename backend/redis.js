@@ -1,8 +1,16 @@
 const { createClient, RESP_TYPES } = require('redis');
 
+const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const REDIS_CONNECT_TIMEOUT_MS = parseInt(process.env.REDIS_CONNECT_TIMEOUT_MS, 10) || 15000;
+const REDIS_RECONNECT_MAX_MS = parseInt(process.env.REDIS_RECONNECT_MAX_MS, 10) || 5000;
+
 // Configure Redis client options, attaching password for authentication if provided
 const clientOptions = {
-  url: process.env.REDIS_URL
+  url: REDIS_URL,
+  socket: {
+    connectTimeout: REDIS_CONNECT_TIMEOUT_MS,
+    reconnectStrategy: (retries) => Math.min(retries * 500, REDIS_RECONNECT_MAX_MS)
+  }
 };
 if (process.env.REDIS_PASSWORD) {
   clientOptions.password = process.env.REDIS_PASSWORD;
@@ -24,6 +32,7 @@ pubClient.on('error', (err) => console.error('Redis Pub Client Error:', err));
 subClient.on('error', (err) => console.error('Redis Sub Client Error:', err));
 
 async function connectRedis() {
+  console.log(`Connecting to Redis at ${REDIS_URL}`);
   await Promise.all([
     pubClient.connect(),
     subClient.connect()

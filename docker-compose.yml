@@ -4,7 +4,22 @@ services:
     image: redis:7.4-alpine
     container_name: pixnette_redis
     restart: always
-    command: redis-server --requirepass "${REDIS_PASSWORD:-pixnette_secure_pass}"
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --requirepass
+      - ${REDIS_PASSWORD:-pixnette_secure_pass}
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-pixnette_secure_pass}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
     volumes:
       - redis_data:/data
     networks:
@@ -24,7 +39,8 @@ services:
       - REDIS_URL=redis://redis:6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-pixnette_secure_pass}
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     networks:
       - web-tier
       - db-tier
@@ -43,7 +59,8 @@ services:
       - REDIS_URL=redis://redis:6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-pixnette_secure_pass}
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     networks:
       - web-tier
       - db-tier

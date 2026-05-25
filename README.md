@@ -122,6 +122,8 @@ DATABASE_ENABLE_CHANNEL_BINDING=true
 # DATABASE_SSL_CA_FILE=/absolute/path/to/database-ca.pem
 # IMPORTANT: Override the default Redis password with a strong custom password!
 REDIS_PASSWORD=a_very_strong_random_password_here
+REDIS_CONNECT_TIMEOUT_MS=15000
+REDIS_RECONNECT_MAX_MS=5000
 ```
 
 In Vercel, configure the matching frontend variables:
