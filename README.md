@@ -85,3 +85,44 @@ cd frontend
 npm install
 npm run dev
 ```
+
+---
+
+## 🔒 Production Security & Deployment (VPS)
+
+When deploying to a production VPS, the services run inside a Docker network environment orchestrated by `docker-compose.yml`. For security, the system utilizes **Cloudflare SSL Termination (Full Strict)**, **Nginx Rate Limiting**, **Redis Password Authentication**, and **Docker Network Isolation**.
+
+### 1. Cloudflare SSL/TLS Full (Strict) Setup
+To encrypt traffic between Cloudflare's edge servers and your VPS Nginx gateway:
+1. Log in to the Cloudflare Dashboard and navigate to **SSL/TLS > Overview**. Change the encryption mode to **Full (Strict)**.
+2. Go to **SSL/TLS > Origin Server** and click **Create Certificate**.
+3. Keep the default settings (RSA 2048, valid for 15 years, targeting `pixnette.site` and `*.pixnette.site`).
+4. Copy the public certificate (PEM format) and save it as `ssl/origin.crt` in the root of the project on your VPS.
+5. Copy the private key and save it as `ssl/origin.key` in the same `ssl/` folder.
+*(Note: The `ssl/` folder is git-ignored to prevent sensitive credentials from leaking.)*
+
+### 2. Configure Production Environment Variables
+On the VPS, create a `backend.env` file in the root directory:
+```env
+DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+COOLDOWN_SECONDS=30
+CANVAS_SIZE=64
+FRONTEND_URL=https://www.pixnette.site
+WRITE_BATCH_INTERVAL_MS=2000
+# IMPORTANT: Override the default Redis password with a strong custom password!
+REDIS_PASSWORD=a_very_strong_random_password_here
+```
+
+### 3. Docker Network Isolation & Port Exposure
+The production topology divides containers into two isolated bridge networks:
+- **`web-tier`**: Contains `nginx` and the backend instances. Allows external traffic to reach the Express API and Socket.io WebSockets.
+- **`db-tier`**: Contains the backend instances and `redis`. Keeps Redis completely isolated from Nginx.
+- **Port Security**: The `redis` container does *not* expose any ports to the host machine. It can only be reached internally by backend instances through the `db-tier` network bridge and requires authentication.
+
+### 4. Running the Stack in Production
+Verify your environment variables are configured and the SSL certificates are in place, then build and launch the containers:
+```bash
+# Build and run containers in detached mode
+sudo docker compose up --build -d
+```
+

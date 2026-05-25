@@ -5,6 +5,7 @@
 Thumbs.db
 *.swp
 *.swo
+ssl/
 
 # Project subdirectories
 backend/node_modules/

@@ -1,9 +1,15 @@
 const { createClient, RESP_TYPES } = require('redis');
 
-// 1. Create the main publisher client (also handles standard database queries)
-const pubClient = createClient({
+// Configure Redis client options, attaching password for authentication if provided
+const clientOptions = {
   url: process.env.REDIS_URL
-});
+};
+if (process.env.REDIS_PASSWORD) {
+  clientOptions.password = process.env.REDIS_PASSWORD;
+}
+
+// 1. Create the main publisher client (also handles standard database queries)
+const pubClient = createClient(clientOptions);
 
 // Create a buffer-enabled modifier client that maps RESP3 blob strings to Buffer
 const bufferClient = pubClient.withTypeMapping({
