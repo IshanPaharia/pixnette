@@ -20,12 +20,12 @@ A high-performance, real-time collaborative pixel art canvas application built t
 ```mermaid
 graph TD
     Client[React Client Vercel] <-->|WebSockets| Proxy[Nginx Gateway VPS]
-    Proxy <-->|Round-Robin| Node1[Express Server 1: Port 3001]
-    Proxy <-->|Round-Robin| Node2[Express Server 2: Port 3002]
+    Proxy <-->|Round-Robin| Node1[Express Server 1 (Container: Port 3001)]
+    Proxy <-->|Round-Robin| Node2[Express Server 2 (Container: Port 3001)]
     
     Node1 <-->|Cluster Pub/Sub| Sync[Socket.io Redis Adapter]
     Node2 <-->|Cluster Pub/Sub| Sync
-    Sync <--> Cache[(Upstash Redis Cache)]
+    Sync <--> Cache[(Redis Cache VPS Local)]
     
     Node1 -->|In-Memory State| Cache
     Node2 -->|In-Memory State| Cache
@@ -42,7 +42,7 @@ graph TD
 | :--- | :--- | :--- |
 | **Frontend** | React + Vite + TailwindCSS | Double-buffered HTML5 canvases & touch-gesture controllers. |
 | **Backend** | Express + Socket.io | Clustered Node.js services managing validations & rate limits. |
-| **Caching** | Upstash Redis | Binary canvas state storage & active cooldown TTL tracking. |
+| **Caching** | Redis (VPS Local) | Binary canvas state storage & active cooldown TTL tracking. |
 | **Database** | Neon Postgres | Transactional records store for canvas history & timelapse replays. |
 | **Routing** | Cloudflare + Nginx | SSL termination, reverse proxying, and WebSocket load balancing. |
 
