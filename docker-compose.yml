@@ -38,6 +38,7 @@ services:
       - PORT=3001
       - REDIS_URL=redis://redis:6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-pixnette_secure_pass}
+      - BYPASS_SECRET=${BYPASS_SECRET:-pixnette_vip_2026}
     depends_on:
       redis:
         condition: service_healthy
@@ -58,6 +59,7 @@ services:
       - PORT=3001
       - REDIS_URL=redis://redis:6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-pixnette_secure_pass}
+      - BYPASS_SECRET=${BYPASS_SECRET:-pixnette_vip_2026}
     depends_on:
       redis:
         condition: service_healthy
