@@ -13,7 +13,7 @@ const { pubClient, subClient, connectRedis } = require('./redis.js')
 
 const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE, 10) || 64
 const COOLDOWN_SECONDS = parseInt(process.env.COOLDOWN_SECONDS, 10) || 30
-const BYPASS_SECRET = process.env.BYPASS_SECRET || 'pixnette_vip_2026'
+const BYPASS_SECRET = process.env.BYPASS_SECRET
 
 const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
 
@@ -77,7 +77,7 @@ io.on('connection', async (socket) => { // Added 'async'
 
   // Auto-exempt if secret key was provided in socket handshake auth
   const providedSecret = socket.handshake.auth?.secretKey
-  if (providedSecret && providedSecret === BYPASS_SECRET) {
+  if (BYPASS_SECRET && providedSecret && providedSecret === BYPASS_SECRET) {
     await addExemptUser(fingerprint)
   }
 
@@ -104,7 +104,7 @@ io.on('connection', async (socket) => { // Added 'async'
   // Handle secret key validation
   socket.on('verify_secret_key', async ({ secretKey } = {}, callback) => {
     try {
-      if (secretKey && secretKey === BYPASS_SECRET) {
+      if (BYPASS_SECRET && secretKey && secretKey === BYPASS_SECRET) {
         await addExemptUser(fingerprint)
         socket.emit('cooldown_sync', { remaining: 0 })
         if (typeof callback === 'function') {
