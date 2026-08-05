@@ -5,7 +5,7 @@ const crypto = require('crypto')
 const { Server } = require('socket.io')
 const { loadCanvasFromDB, setPixel, getPixel } = require('./canvas.js')
 const { queuePixelWrite, flushQueueToPostgres, recoverInterruptedFlushes } = require('./writeQueue.js')
-const { isOnCooldown, setCooldown, getCooldownRemaining, addExemptUser } = require('./cooldown.js')
+const { isOnCooldown, setCooldown, getCooldownRemaining, addExemptUser, isExempt } = require('./cooldown.js')
 const cors = require('cors')
 const pool = require('./db')
 const { createAdapter } = require('@socket.io/redis-adapter')
@@ -150,7 +150,9 @@ io.on('connection', async (socket) => { // Added 'async'
         return
       }
 
-      if (await isOnCooldown(fingerprint)) {
+      const exempt = await isExempt(fingerprint)
+
+      if (!exempt && await isOnCooldown(fingerprint)) {
         const remaining = await getCooldownRemaining(fingerprint)
         const origColor = await getPixel(x, y)
         socket.emit('place_error', { message: `Cooldown: ${remaining}s remaining`, x, y, color: origColor })
@@ -159,10 +161,11 @@ io.on('connection', async (socket) => { // Added 'async'
 
       await setPixel(x, y, color)
       await queuePixelWrite(x, y, color, fingerprint)
-      await setCooldown(fingerprint)
 
-      io.emit('pixel_update', { x, y, color })
-      socket.emit('cooldown_sync', { remaining: COOLDOWN_SECONDS })
+      if (!exempt) {
+        await setCooldown(fingerprint)
+        socket.emit('cooldown_sync', { remaining: COOLDOWN_SECONDS })
+      }
     } catch (err) {
       console.error('Error placing pixel:', err)
       socket.emit('place_error', { message: 'Server error processing pixel placement' })
