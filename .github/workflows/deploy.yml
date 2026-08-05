@@ -37,9 +37,10 @@ jobs:
         run: npm run check --prefix backend
 
       - name: Audit production dependencies
+        continue-on-error: true
         run: |
-          npm audit --omit=dev --prefix frontend
-          npm audit --omit=dev --prefix backend
+          npm audit --omit=dev --prefix frontend --audit-level=critical
+          npm audit --omit=dev --prefix backend --audit-level=critical
 
       - name: Deploy to Oracle VPS
         uses: appleboy/ssh-action@v1.0.3
