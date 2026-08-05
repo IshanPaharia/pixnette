@@ -77,7 +77,7 @@ io.on('connection', async (socket) => { // Added 'async'
 
   // Auto-exempt if secret key was provided in socket handshake auth
   const providedSecret = socket.handshake.auth?.secretKey
-  if (BYPASS_SECRET && providedSecret && providedSecret === BYPASS_SECRET) {
+  if (BYPASS_SECRET && providedSecret && String(providedSecret).trim() === String(BYPASS_SECRET).trim()) {
     await addExemptUser(fingerprint)
   }
 
@@ -104,7 +104,8 @@ io.on('connection', async (socket) => { // Added 'async'
   // Handle secret key validation
   socket.on('verify_secret_key', async ({ secretKey } = {}, callback) => {
     try {
-      if (BYPASS_SECRET && secretKey && secretKey === BYPASS_SECRET) {
+      const match = BYPASS_SECRET && secretKey && String(secretKey).trim() === String(BYPASS_SECRET).trim()
+      if (match) {
         await addExemptUser(fingerprint)
         socket.emit('cooldown_sync', { remaining: 0 })
         if (typeof callback === 'function') {
@@ -209,6 +210,11 @@ async function startServer() {
 
   server.listen(process.env.PORT || 3001, () => {
     console.log(`🚀 Pixnette backend running on port ${process.env.PORT || 3001}`)
+    if (!BYPASS_SECRET) {
+      console.warn('⚠️  BYPASS_SECRET is NOT set in environment variables! Secret key bypass is disabled.')
+    } else {
+      console.log(`🔒 BYPASS_SECRET configured successfully`)
+    }
   })
 }
 
