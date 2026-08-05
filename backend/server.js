@@ -161,6 +161,7 @@ io.on('connection', async (socket) => { // Added 'async'
 
       await setPixel(x, y, color)
       await queuePixelWrite(x, y, color, fingerprint)
+      io.emit('pixel_update', { x, y, color })
 
       if (!exempt) {
         await setCooldown(fingerprint)

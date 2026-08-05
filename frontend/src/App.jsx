@@ -20,6 +20,7 @@ function App() {
   const [hoverCursor, setHoverCursor] = useState(null);
   const [flash, setFlash] = useState(null);
   const [isSecretModalOpen, setIsSecretModalOpen] = useState(false);
+  const [isVip, setIsVip] = useState(() => !!localStorage.getItem('pb_secret_key'));
   const isFirstConnect = useRef(true);
 
   // Prevent browser native pinch/double-tap zoom on mobile devices
@@ -146,8 +147,10 @@ function App() {
 
     socket.emit('place_pixel', { x, y, color: selectedColor });
     updatePixel(x, y, selectedColor);
-    triggerCooldown();
-  }, [socketRef, selectedColor, showFlash, updatePixel, triggerCooldown]);
+    if (!isVip) {
+      triggerCooldown();
+    }
+  }, [socketRef, selectedColor, showFlash, updatePixel, triggerCooldown, isVip]);
 
   const handlePlace = useCallback(() => {
     if (cooldownRemaining > 0) {
@@ -189,6 +192,7 @@ function App() {
         clearTimeout(timer);
         if (response?.success) {
           localStorage.setItem('pb_secret_key', secretKey);
+          setIsVip(true);
           syncCooldown(0);
           showFlash('✨ VIP Cooldown Exemption Activated!');
           resolve(true);
