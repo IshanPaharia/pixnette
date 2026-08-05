@@ -50,6 +50,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd ~/pixnette
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             sudo docker compose up --build -d
             sudo docker compose exec -T backend1 node setup-db.js
