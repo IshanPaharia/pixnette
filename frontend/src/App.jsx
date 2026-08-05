@@ -180,7 +180,13 @@ function App() {
     }
 
     return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        showFlash('Verification timed out');
+        resolve(false);
+      }, 5000);
+
       socket.emit('verify_secret_key', { secretKey }, (response) => {
+        clearTimeout(timer);
         if (response?.success) {
           localStorage.setItem('pb_secret_key', secretKey);
           syncCooldown(0);

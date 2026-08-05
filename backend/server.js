@@ -103,15 +103,22 @@ io.on('connection', async (socket) => { // Added 'async'
 
   // Handle secret key validation
   socket.on('verify_secret_key', async ({ secretKey } = {}, callback) => {
-    if (secretKey && secretKey === BYPASS_SECRET) {
-      await addExemptUser(fingerprint)
-      socket.emit('cooldown_sync', { remaining: 0 })
-      if (typeof callback === 'function') {
-        callback({ success: true })
+    try {
+      if (secretKey && secretKey === BYPASS_SECRET) {
+        await addExemptUser(fingerprint)
+        socket.emit('cooldown_sync', { remaining: 0 })
+        if (typeof callback === 'function') {
+          callback({ success: true })
+        }
+      } else {
+        if (typeof callback === 'function') {
+          callback({ success: false, message: 'Invalid secret key' })
+        }
       }
-    } else {
+    } catch (err) {
+      console.error('Error verifying secret key:', err)
       if (typeof callback === 'function') {
-        callback({ success: false, message: 'Invalid secret key' })
+        callback({ success: false, message: 'Server error' })
       }
     }
   })
