@@ -5,7 +5,7 @@ const crypto = require('crypto')
 const { Server } = require('socket.io')
 const { loadCanvasFromDB, setPixel, getPixel } = require('./canvas.js')
 const { queuePixelWrite, flushQueueToPostgres, recoverInterruptedFlushes } = require('./writeQueue.js')
-const { isOnCooldown, setCooldown, getCooldownRemaining } = require('./cooldown.js')
+const { isOnCooldown, setCooldown, getCooldownRemaining, addExemptUser } = require('./cooldown.js')
 const cors = require('cors')
 const pool = require('./db')
 const { createAdapter } = require('@socket.io/redis-adapter')
@@ -13,6 +13,7 @@ const { pubClient, subClient, connectRedis } = require('./redis.js')
 
 const CANVAS_SIZE = parseInt(process.env.CANVAS_SIZE, 10) || 64
 const COOLDOWN_SECONDS = parseInt(process.env.COOLDOWN_SECONDS, 10) || 30
+const BYPASS_SECRET = process.env.BYPASS_SECRET || 'pixnette_vip_2026'
 
 const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
 
@@ -74,6 +75,12 @@ setInterval(() => {
 io.on('connection', async (socket) => { // Added 'async'
   const fingerprint = getFingerprint(socket)
 
+  // Auto-exempt if secret key was provided in socket handshake auth
+  const providedSecret = socket.handshake.auth?.secretKey
+  if (providedSecret && providedSecret === BYPASS_SECRET) {
+    await addExemptUser(fingerprint)
+  }
+
   console.log(`🔌 Client connected on port ${process.env.PORT || 3001} (Fingerprint: ${fingerprint})`);
   // Tell all clients the current user count
   try {
@@ -93,6 +100,21 @@ io.on('connection', async (socket) => { // Added 'async'
     console.error(`Failed to get cooldown for fingerprint ${fingerprint}:`, err.message)
     socket.emit('cooldown_sync', { remaining: 0 })
   }
+
+  // Handle secret key validation
+  socket.on('verify_secret_key', async ({ secretKey } = {}, callback) => {
+    if (secretKey && secretKey === BYPASS_SECRET) {
+      await addExemptUser(fingerprint)
+      socket.emit('cooldown_sync', { remaining: 0 })
+      if (typeof callback === 'function') {
+        callback({ success: true })
+      }
+    } else {
+      if (typeof callback === 'function') {
+        callback({ success: false, message: 'Invalid secret key' })
+      }
+    }
+  })
 
   // Handle pixel placement
   socket.on('place_pixel', async (data) => { // Added 'async'

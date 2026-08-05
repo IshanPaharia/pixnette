@@ -1,7 +1,24 @@
 import { CANVAS_SIZE } from '../utils/canvas';
-import { memo } from 'react';
+import { memo, useRef } from 'react';
 
-function TopBarComponent({ liveCount, isConnected, onEnterTimelapse }) {
+function TopBarComponent({ liveCount, isConnected, onEnterTimelapse, onUserCountTripleClick }) {
+  const clickCountRef = useRef(0);
+  const clickTimerRef = useRef(null);
+
+  const handleUserCountClick = () => {
+    clickCountRef.current += 1;
+    if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+
+    if (clickCountRef.current >= 3) {
+      clickCountRef.current = 0;
+      if (onUserCountTripleClick) onUserCountTripleClick();
+    } else {
+      clickTimerRef.current = setTimeout(() => {
+        clickCountRef.current = 0;
+      }, 1500);
+    }
+  };
+
   return (
     <div className="h-12 flex-none bg-[var(--color-surface)]/70 backdrop-blur-md border-b border-[var(--color-border)] flex items-center justify-between px-3 sm:px-6 fixed top-0 w-full z-20 box-border">
       <div className="flex items-baseline gap-2 sm:gap-3">
@@ -18,7 +35,11 @@ function TopBarComponent({ liveCount, isConnected, onEnterTimelapse }) {
       >
         TIMELAPSE
       </button>
-      <div className="flex items-center gap-2">
+      <div 
+        onClick={handleUserCountClick} 
+        className="flex items-center gap-2 cursor-pointer select-none py-1 px-2 rounded hover:bg-white/5 transition-colors"
+        title="Live users"
+      >
         <div className="relative flex h-2 w-2 sm:h-2.5 sm:w-2.5">
           {isConnected && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>}
           <span className={`relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 ${isConnected ? 'bg-[var(--color-accent)]' : 'bg-red-500'}`}></span>

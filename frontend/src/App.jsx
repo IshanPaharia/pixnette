@@ -8,6 +8,7 @@ import { useCooldown } from './hooks/useCooldown';
 import { useCanvas } from './hooks/useCanvas';
 import { Analytics } from "@vercel/analytics/react";
 import { TimelapseView } from './components/TimelapseView';
+import { SecretKeyModal } from './components/SecretKeyModal';
 
 function App() {
   const { socketRef, isConnected, liveCount } = useSocket();
@@ -18,6 +19,7 @@ function App() {
   const [selectedColor, setSelectedColor] = useState(0);
   const [hoverCursor, setHoverCursor] = useState(null);
   const [flash, setFlash] = useState(null);
+  const [isSecretModalOpen, setIsSecretModalOpen] = useState(false);
   const isFirstConnect = useRef(true);
 
   // Prevent browser native pinch/double-tap zoom on mobile devices
@@ -170,6 +172,27 @@ function App() {
     submitPixel(x, y);
   }, [cooldownRemaining, showFlash, submitPixel]);
 
+  const handleSecretSubmit = useCallback(async (secretKey) => {
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      showFlash('Socket not connected');
+      return false;
+    }
+
+    return new Promise((resolve) => {
+      socket.emit('verify_secret_key', { secretKey }, (response) => {
+        if (response?.success) {
+          localStorage.setItem('pb_secret_key', secretKey);
+          syncCooldown(0);
+          showFlash('✨ VIP Cooldown Exemption Activated!');
+          resolve(true);
+        } else {
+          resolve(false);
+        }
+      });
+    });
+  }, [socketRef, syncCooldown, showFlash]);
+
   if (view === 'timelapse') {
     return <TimelapseView onExit={() => setView('canvas')} />;
   }
@@ -180,6 +203,7 @@ function App() {
         liveCount={liveCount} 
         isConnected={isConnected} 
         onEnterTimelapse={() => setView('timelapse')}
+        onUserCountTripleClick={() => setIsSecretModalOpen(true)}
       />
       
       <Canvas 
@@ -211,6 +235,13 @@ function App() {
         clientX={hoverCursor?.clientX}
         clientY={hoverCursor?.clientY}
       />
+
+      <SecretKeyModal 
+        isOpen={isSecretModalOpen} 
+        onClose={() => setIsSecretModalOpen(false)}
+        onSubmit={handleSecretSubmit}
+      />
+
       <Analytics/>
     </div>
   );

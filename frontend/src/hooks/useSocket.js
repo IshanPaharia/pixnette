@@ -29,11 +29,13 @@ export function useSocket() {
       localStorage.setItem('pb_device_id', deviceId);
     }
 
+    const secretKey = localStorage.getItem('pb_secret_key') || undefined;
+
     // 2. Create the socket inside the effect
     // WebSockets-only: skip HTTP polling entirely, no sticky sessions needed
     // upgrade: false prevents Socket.io from attempting HTTP→WebSocket upgrade handshake
     const s = io(url, {
-      auth: { deviceId },
+      auth: { deviceId, secretKey },
       transports: ['websocket'],
       upgrade: false,
       reconnectionAttempts: 10,
